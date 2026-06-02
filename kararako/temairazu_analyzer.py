@@ -77,15 +77,37 @@ def analyze(stay_files, pickup_files):
     active = [r for r in all_stay if r.get("予約区分", "") != "キャンセル"]
     cancels = [r for r in all_stay if r.get("予約区分", "") == "キャンセル"]
 
-    # ── 先行予約同日対比 用の生データ（コンパクト） ──
+    # ── 先行予約同日対比 用の生データ（stay + pickup 統合） ──
+    # pickupデータが将来月のCI予約を含むため、pickupを主体に使用
+    seen_keys = set()
     bookings_raw = []
+    # まずpickupから（受信日ベースなので将来月のCIを含む）
+    for r in all_pickup:
+        bd = r.get("予約日時", "")[:10]
+        ci = r.get("チェックイン日", "")[:7]
+        if not bd or not ci: continue
+        key = (r.get("予約番号", ""), bd, ci, r.get("予約サイト名", ""))
+        if key in seen_keys: continue
+        seen_keys.add(key)
+        bookings_raw.append({
+            "bd": bd, "ci": ci,
+            "ch": r.get("予約サイト名", "不明"),
+            "rooms": max(1, pint(r.get("部屋数", 1))),
+            "rn": max(1, pint(r.get("部屋数", 1))) * max(1, pint(r.get("泊数", 1))),
+            "rev": pint(r.get("合計料金", 0)),
+            "ppl": pint(r.get("大人人数", 0)) + pint(r.get("子供人数", 0)),
+            "k": 1 if r.get("予約区分", "") == "キャンセル" else 0,
+        })
+    # stayからもpickupに無い分を補完
     for r in all_stay:
         bd = r.get("予約日時", "")[:10]
         ci = r.get("チェックイン日", "")[:7]
         if not bd or not ci: continue
+        key = (r.get("予約番号", ""), bd, ci, r.get("予約サイト名", ""))
+        if key in seen_keys: continue
+        seen_keys.add(key)
         bookings_raw.append({
-            "bd": bd,
-            "ci": ci,
+            "bd": bd, "ci": ci,
             "ch": r.get("予約サイト名", "不明"),
             "rooms": max(1, pint(r.get("部屋数", 1))),
             "rn": max(1, pint(r.get("部屋数", 1))) * max(1, pint(r.get("泊数", 1))),
