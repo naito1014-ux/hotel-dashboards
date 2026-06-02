@@ -77,19 +77,16 @@ def analyze(stay_files, pickup_files):
     active = [r for r in all_stay if r.get("予約区分", "") != "キャンセル"]
     cancels = [r for r in all_stay if r.get("予約区分", "") == "キャンセル"]
 
-    # ── 先行予約同日対比 用の生データ（stay + pickup 統合） ──
-    # pickupデータが将来月のCI予約を含むため、pickupを主体に使用
-    seen_keys = set()
-    bookings_raw = []
-    # まずpickupから（受信日ベースなので将来月のCIを含む）
+    # ── 先行予約同日対比 用の生データ（pickupベース） ──
+    # pickupデータ：受信日ベースなので将来月のCIデータを含む
+    # 予約番号ベースで最新状態のみ保持（同一予約の変更・キャンセルを反映）
+    booking_latest = {}
     for r in all_pickup:
         bd = r.get("予約日時", "")[:10]
         ci = r.get("チェックイン日", "")[:7]
+        resv_no = r.get("予約番号", "")
         if not bd or not ci: continue
-        key = (r.get("予約番号", ""), bd, ci, r.get("予約サイト名", ""))
-        if key in seen_keys: continue
-        seen_keys.add(key)
-        bookings_raw.append({
+        entry = {
             "bd": bd, "ci": ci,
             "ch": r.get("予約サイト名", "不明"),
             "rooms": max(1, pint(r.get("部屋数", 1))),
@@ -97,24 +94,15 @@ def analyze(stay_files, pickup_files):
             "rev": pint(r.get("合計料金", 0)),
             "ppl": pint(r.get("大人人数", 0)) + pint(r.get("子供人数", 0)),
             "k": 1 if r.get("予約区分", "") == "キャンセル" else 0,
-        })
-    # stayからもpickupに無い分を補完
-    for r in all_stay:
-        bd = r.get("予約日時", "")[:10]
-        ci = r.get("チェックイン日", "")[:7]
-        if not bd or not ci: continue
-        key = (r.get("予約番号", ""), bd, ci, r.get("予約サイト名", ""))
-        if key in seen_keys: continue
-        seen_keys.add(key)
-        bookings_raw.append({
-            "bd": bd, "ci": ci,
-            "ch": r.get("予約サイト名", "不明"),
-            "rooms": max(1, pint(r.get("部屋数", 1))),
-            "rn": max(1, pint(r.get("部屋数", 1))) * max(1, pint(r.get("泊数", 1))),
-            "rev": pint(r.get("合計料金", 0)),
-            "ppl": pint(r.get("大人人数", 0)) + pint(r.get("子供人数", 0)),
-            "k": 1 if r.get("予約区分", "") == "キャンセル" else 0,
-        })
+        }
+        if resv_no:
+            # 同一予約番号は最新（受信日が遅い方）を採用
+            if resv_no not in booking_latest or bd >= booking_latest[resv_no]["bd"]:
+                booking_latest[resv_no] = entry
+        else:
+            # 予約番号なしはそのまま追加（ユニークキー生成）
+            booking_latest[f"_no_{len(booking_latest)}_{bd}_{ci}"] = entry
+    bookings_raw = list(booking_latest.values())
 
     # ── MONTHLY ──
     by_month_a = defaultdict(list)
