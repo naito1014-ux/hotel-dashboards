@@ -420,7 +420,7 @@ function drawPickup(){
   let pyAgg=[];
   if(pickupShowPY){
     const pyLookup={};DATA.pickup.forEach(p=>{pyLookup[p.date]=p;});
-    pyAgg=dailyAgg.map(d=>{const pyDate=(parseInt(d.date.slice(0,4))-1)+d.date.slice(4);const pp=pyLookup[pyDate];if(!pp)return{total:0};let total=0;allCh.forEach(ch=>{const cd=pp?pp.channels[ch]||{}:{};Object.entries(cd).forEach(([cm,dd])=>{total+=dd[pickupMetric]||0;});});return{total};});
+    pyAgg=dailyAgg.map(d=>{const pyDate=(parseInt(d.date.slice(0,4))-1)+d.date.slice(4);const pp=pyLookup[pyDate];if(!pp)return{total:0,channels:{}};let total=0;const chData={};allCh.forEach(ch=>{let val=0;const cd=pp?pp.channels[ch]||{}:{};Object.entries(cd).forEach(([cm,dd])=>{val+=dd[pickupMetric]||0;});chData[ch]=val;total+=val;});return{total,channels:chData};});
   }
   // Table
   let rows=dailyAgg.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date.slice(5)} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmt(d.total)}</td><td class="num ${d.net<0?'dn':'up'}">${d.net>=0?'+':''}${d.net}</td>${allCh.map(ch=>`<td class="num">${d.channels[ch]||'-'}</td>`).join('')}</tr>`;}).join('');
@@ -447,7 +447,14 @@ function drawPickup(){
   const maSets=[{label:maLabel+' 日次',data:maData,borderColor:'rgba(255,255,255,.2)',pointRadius:1,tension:.2}];
   if(pickupMA7)maSets.push({label:'7日MA',data:ma(maData,7),borderColor:'#4f8ef7',pointRadius:0,tension:.4,borderWidth:2});
   if(pickupMA30)maSets.push({label:'30日MA',data:ma(maData,30),borderColor:'#f59e0b',pointRadius:0,tension:.4,borderWidth:2});
-  if(pickupShowPY&&pyAgg.length)maSets.push({label:'前年',data:pyAgg.map(p=>p.total),borderColor:'#f75f5f',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:1.5});
+  if(pickupShowPY&&pyAgg.length){
+    let pyData=pickupMaCh==='__all__'?pyAgg.map(p=>p.total):pyAgg.map(p=>p.channels?p.channels[pickupMaCh]||0:0);
+    // Apply same MA to PY data
+    if(pickupMA30&&!pickupMA7)pyData=ma(pyData,30);
+    else if(pickupMA7&&!pickupMA30)pyData=ma(pyData,7);
+    else if(pickupMA7&&pickupMA30)pyData=ma(pyData,30);
+    maSets.push({label:'前年'+(pickupMA30?' 30日MA':pickupMA7?' 7日MA':''),data:pyData,borderColor:'#f75f5f',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:1.5});
+  }
   makeChart('pickup-ma',{type:'line',data:{labels:dailyAgg.map(d=>d.date.slice(5)),datasets:maSets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#7a7f8e',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});
 }
 
