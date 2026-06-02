@@ -223,52 +223,178 @@ let curTab='monthly';
 const charts={};
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function makeChart(id,cfg){destroyChart(id);const c=document.getElementById(id);if(!c)return null;charts[id]=new Chart(c,cfg);return charts[id];}
-
-function showTab(name,el){
-  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  if(el)el.classList.add('active');
-  else document.querySelectorAll('.nav-tab').forEach(t=>{if(t.textContent.trim()===name)t.classList.add('active');});
-  curTab=name;
-  document.getElementById('monthBar').style.display=noMonthBar.includes(name)?'none':'';
-  const tm=tabMonths[name]||DATA.default_month;
-  document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===tm));
-  drawTab(name);
-}
-function switchAllTabs(m){
-  monthTabs.forEach(t=>{tabMonths[t]=m;});
-  document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===m));
-  const sel=document.getElementById('global-month-select');if(sel)sel.value=m;
-  drawTab(curTab);
-}
+function showTab(name,el){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');if(el)el.classList.add('active');curTab=name;document.getElementById('monthBar').style.display=noMonthBar.includes(name)?'none':'';const tm=tabMonths[name]||DATA.default_month;document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===tm));drawTab(name);}
+function switchAllTabs(m){monthTabs.forEach(t=>{tabMonths[t]=m;});document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===m));const sel=document.getElementById('global-month-select');if(sel)sel.value=m;drawTab(curTab);}
 function printAll(){document.querySelectorAll('.section').forEach(s=>s.classList.add('active'));setTimeout(()=>{window.print();},300);}
-function drawTab(name){
-  const m=tabMonths[name]||DATA.default_month;
-  switch(name){
-    case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;
-    case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;
-    case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;
-    case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;
-  }
-}
+function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;}}
 
 function drawMonthly(m){const el=document.getElementById('tab-monthly');const md=DATA.monthly[m];if(!md){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}const dd=DATA.daily[m]||[];const chRevMap={};dd.forEach(d=>{const tr=d.rooms;Object.entries(d.channels).forEach(([ch,rooms])=>{if(!chRevMap[ch])chRevMap[ch]={rooms:0,revenue:0,rn:0,persons:0};chRevMap[ch].rooms+=rooms;chRevMap[ch].revenue+=tr>0?Math.round(d.revenue*rooms/tr):0;chRevMap[ch].rn+=rooms;chRevMap[ch].persons+=tr>0?Math.round(d.persons*rooms/tr):0;});});const chList=Object.entries(chRevMap).sort((a,b)=>b[1].revenue-a[1].revenue).map(([ch,d])=>({name:ch,rooms:d.rooms,rn:d.rn,revenue:d.revenue,persons:d.persons,adr:d.rn>0?Math.round(d.revenue/d.rn):0}));const totalRev=chList.reduce((a,c)=>a+c.revenue,0);let chRows=chList.map(c=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(c.name)};margin-right:6px"></span>${c.name}</td><td class="num">${fmt(c.rooms)}</td><td class="num">${fmt(c.rn)}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(c.adr)}</td><td class="num">${fmt(c.persons)}</td><td class="num">${pct(c.revenue,totalRev)}%</td></tr>`).join('');el.innerHTML=`<div class="kpi-row"><div class="kpi blue"><div class="label">売上合計</div><div class="value">${(md.revenue/10000).toFixed(0)}<span class="unit">万円</span></div></div><div class="kpi green"><div class="label">予約件数</div><div class="value">${fmt(md.rooms)}<span class="unit">件</span></div></div><div class="kpi blue"><div class="label">室泊数 RN</div><div class="value">${fmt(md.rn)}<span class="unit">RN</span></div></div><div class="kpi orange"><div class="label">ADR</div><div class="value">${fmt(md.adr)}<span class="unit">円</span></div></div><div class="kpi green"><div class="label">人泊単価</div><div class="value">${fmt(md.per_person)}<span class="unit">円</span></div></div><div class="kpi red"><div class="label">キャンセル率</div><div class="value">${md.cancel_rate}<span class="unit">%</span></div></div></div><div class="grid-2"><div class="card"><h3>チャネル別構成</h3><div class="chart-wrap"><canvas id="monthly-pie"></canvas></div></div><div class="card"><h3>チャネル別明細</h3><div class="scroll-table"><table><tr><th>チャネル</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">構成比</th></tr>${chRows}</table></div></div></div>`;const cData=chList.filter(c=>c.revenue>0);makeChart('monthly-pie',{type:'doughnut',data:{labels:cData.map(c=>c.name),datasets:[{data:cData.map(c=>c.revenue),backgroundColor:cData.map(c=>chColor(c.name)),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': \u00a5'+fmt(ctx.raw)+' ('+pct(ctx.raw,totalRev)+'%)'}}}}});}
 
-function drawYoY(){const el=document.getElementById('tab-yoy');const allMonths=DATA.months;const yoyMonths=Object.keys(DATA.yoy||{});if(!yoyMonths.length){el.innerHTML=`<div class="card"><h3>前年同日対比</h3><div class="no-data">前年データが蓄積されると、前年同曜日比較が表示されます。<br>手間いらずの前年CSVを追加することで利用可能になります。</div></div>`;return;}if(!window._yoyMonth)window._yoyMonth=yoyMonths[yoyMonths.length-1];const ym=window._yoyMonth;const cd=DATA.yoy[ym]||[];let monthBtns=yoyMonths.map(m=>`<button class="toggle-btn ${ym===m?'active':''}" onclick="window._yoyMonth='${m}';drawYoY()">${m}</button>`).join('');const totalCur=cd.reduce((a,d)=>a+d.revenue,0);const totalPy=cd.reduce((a,d)=>a+d.py_revenue,0);const diffPct=totalPy?((totalCur-totalPy)/totalPy*100).toFixed(1):'-';let rows=cd.map(d=>{const isWe=d.dow==='土'||d.dow==='日';const rdiff=d.py_revenue?((d.revenue-d.py_revenue)/d.py_revenue*100).toFixed(1):'-';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmtY(d.revenue)}</td><td class="num">${fmtY(d.py_revenue)}</td><td class="num ${Number(rdiff)>0?'up':'dn'}">${rdiff}%</td><td class="num">${d.rooms}</td><td class="num">${d.py_rooms}</td><td class="num">${fmtY(d.adr)}</td><td class="num">${fmtY(d.py_adr)}</td></tr>`;}).join('');el.innerHTML=`<div class="filter-row"><label>表示月：</label>${monthBtns}</div><div class="kpi-row"><div class="kpi blue"><div class="label">今年 売上</div><div class="value">${(totalCur/10000).toFixed(0)}<span class="unit">万円</span></div></div><div class="kpi green"><div class="label">前年 売上</div><div class="value">${(totalPy/10000).toFixed(0)}<span class="unit">万円</span></div></div><div class="kpi ${Number(diffPct)>=0?'green':'red'}"><div class="label">前年比</div><div class="value">${diffPct}<span class="unit">%</span></div></div></div><div class="card"><h3>日別売上（今年 vs 前年同曜日）</h3><div class="chart-wrap tall"><canvas id="yoy-chart"></canvas></div></div><div class="card"><h3>日別明細（前年同曜日比較）</h3><div class="scroll-table"><table><tr><th>日付</th><th class="num">今年売上</th><th class="num">前年売上</th><th class="num">前年比</th><th class="num">今年室数</th><th class="num">前年室数</th><th class="num">今年ADR</th><th class="num">前年ADR</th></tr>${rows}</table></div></div>`;makeChart('yoy-chart',{type:'bar',data:{labels:cd.map(d=>d.date.slice(5)+' '+d.dow),datasets:[{label:'今年',data:cd.map(d=>d.revenue),backgroundColor:'rgba(79,142,247,.6)',borderRadius:3},{label:'前年',data:cd.map(d=>d.py_revenue),backgroundColor:'rgba(255,255,255,.15)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#7a7f8e',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}}}}});}
+/* ========== YOY: 先行予約 同日対比 ========== */
+function calcYoYPosition(baseDate, yearOffset){
+  const br=DATA.bookings_raw;
+  const result={};
+  br.forEach(b=>{
+    if(b.bd<=baseDate && b.k===0){
+      const ciYear=parseInt(b.ci.slice(0,4));
+      const baseYear=parseInt(baseDate.slice(0,4));
+      if(ciYear===baseYear+yearOffset){
+        const mm=b.ci.slice(5,7);
+        if(!result[mm])result[mm]={rooms:0,rn:0,revenue:0,persons:0,channels:{}};
+        result[mm].rooms+=b.rooms;result[mm].rn+=b.rn;result[mm].revenue+=b.rev;result[mm].persons+=b.ppl;
+        result[mm].channels[b.ch]=(result[mm].channels[b.ch]||0)+b.rooms;
+      }
+    }
+  });
+  return result;
+}
+function drawYoY(){
+  const el=document.getElementById('tab-yoy');
+  const br=DATA.bookings_raw;
+  if(!br||!br.length){el.innerHTML='<div class="no-data">予約データがありません</div>';return;}
+  const allDates=[...new Set(br.map(b=>b.bd))].sort();
+  const latestDate=allDates[allDates.length-1];
+  if(!window._yoyBase)window._yoyBase=latestDate;
+  const base=window._yoyBase;
+  const baseYear=parseInt(base.slice(0,4));
+  const prevBase=(baseYear-1)+base.slice(4);
+  const cur=calcYoYPosition(base,0);
+  const prev=calcYoYPosition(prevBase,-1);
+  const allMM=[...new Set([...Object.keys(cur),...Object.keys(prev)])].sort();
+  const totalCur=allMM.reduce((a,mm)=>a+(cur[mm]?cur[mm].revenue:0),0);
+  const totalPrev=allMM.reduce((a,mm)=>a+(prev[mm]?prev[mm].revenue:0),0);
+  const diffPct=totalPrev?((totalCur-totalPrev)/totalPrev*100).toFixed(1):'-';
+  // Channel breakdown
+  const allCh=new Set();
+  allMM.forEach(mm=>{if(cur[mm])Object.keys(cur[mm].channels).forEach(c=>allCh.add(c));if(prev[mm])Object.keys(prev[mm].channels).forEach(c=>allCh.add(c));});
+  const chList=[...allCh];
+  let rows=allMM.map(mm=>{
+    const c=cur[mm]||{rooms:0,rn:0,revenue:0,persons:0};
+    const p=prev[mm]||{rooms:0,rn:0,revenue:0,persons:0};
+    const rdiff=p.revenue?((c.revenue-p.revenue)/p.revenue*100).toFixed(1):'-';
+    return`<tr><td>${baseYear}-${mm}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(p.revenue)}</td><td class="num ${Number(rdiff)>0?'up':'dn'}">${rdiff}%</td><td class="num">${c.rooms}</td><td class="num">${p.rooms}</td><td class="num">${c.rn?fmtY(Math.round(c.revenue/c.rn)):'-'}</td><td class="num">${p.rn?fmtY(Math.round(p.revenue/p.rn)):'-'}</td></tr>`;
+  }).join('');
+  el.innerHTML=`
+  <div class="filter-row"><label>基準日：</label><input type="date" value="${base}" onchange="window._yoyBase=this.value;drawYoY()" style="color:var(--tx)"><button class="toggle-btn" onclick="window._yoyBase='${latestDate}';drawYoY()">最新日</button></div>
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="label">${baseYear}年 売上計</div><div class="value">${(totalCur/10000).toFixed(0)}<span class="unit">万円</span></div></div>
+    <div class="kpi green"><div class="label">${baseYear-1}年 売上計</div><div class="value">${(totalPrev/10000).toFixed(0)}<span class="unit">万円</span></div></div>
+    <div class="kpi ${Number(diffPct)>=0?'green':'red'}"><div class="label">前年比</div><div class="value">${diffPct}<span class="unit">%</span></div></div>
+  </div>
+  <div class="card"><h3>先行予約 同日対比（${base}時点 vs ${prevBase}時点）</h3><div class="chart-wrap tall"><canvas id="yoy-chart"></canvas></div></div>
+  <div class="card"><h3>月別明細</h3><div class="scroll-table"><table>
+    <tr><th>宿泊月</th><th class="num">今年売上</th><th class="num">前年売上</th><th class="num">前年比</th><th class="num">今年室数</th><th class="num">前年室数</th><th class="num">今年ADR</th><th class="num">前年ADR</th></tr>${rows}</table></div></div>`;
+  makeChart('yoy-chart',{type:'bar',data:{labels:allMM.map(mm=>baseYear+'-'+mm),datasets:[
+    {label:baseYear+'年',data:allMM.map(mm=>(cur[mm]||{revenue:0}).revenue),backgroundColor:'rgba(79,142,247,.6)',borderRadius:3},
+    {label:(baseYear-1)+'年',data:allMM.map(mm=>(prev[mm]||{revenue:0}).revenue),backgroundColor:'rgba(255,255,255,.15)',borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#7a7f8e'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}}}}});
+}
 
 function drawDaily(m){const el=document.getElementById('tab-daily');const dd=DATA.daily[m]||[];if(!dd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}let rows=dd.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${d.rooms}</td><td class="num">${d.rn}</td><td class="num">${fmtY(d.revenue)}</td><td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td><td class="num">${fmtY(d.per_person)}</td></tr>`;}).join('');el.innerHTML=`<div class="card"><h3>日別売上（${m}）</h3><div class="chart-wrap tall"><canvas id="daily-chart"></canvas></div></div><div class="card"><h3>日別明細</h3><div class="scroll-table"><table><tr><th>日付</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">人泊単価</th></tr>${rows}</table></div></div>`;makeChart('daily-chart',{type:'bar',data:{labels:dd.map(d=>d.date.slice(5)+' '+d.dow),datasets:[{type:'bar',label:'売上',data:dd.map(d=>d.revenue),backgroundColor:dd.map(d=>(d.dow==='土'||d.dow==='日')?'rgba(247,163,79,.6)':'rgba(79,142,247,.6)'),borderRadius:3,yAxisID:'y'},{type:'line',label:'ADR',data:dd.map(d=>d.adr),borderColor:'#f59e0b',backgroundColor:'transparent',pointRadius:2,tension:.3,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{color:'#7a7f8e',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}},y1:{position:'right',grid:{display:false},ticks:{color:'#f59e0b',callback:v=>'\u00a5'+fmt(v)}}},plugins:{legend:{labels:{color:'#e8eaf0'}}}}});}
 
 function drawRoom(m){const el=document.getElementById('tab-room');const rd=DATA.room[m]||[];if(!rd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}const totalRev=rd.reduce((a,r)=>a+r.revenue,0);let rows=rd.map(r=>`<tr><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td><td class="num">${r.rooms}</td><td class="num">${r.rn}</td><td class="num">${fmtY(r.revenue)}</td><td class="num">${fmtY(r.adr)}</td><td class="num">${r.persons}</td><td class="num">${pct(r.revenue,totalRev)}%<div class="bar-bg"><div class="bar-fill" style="width:${(r.revenue/totalRev*100).toFixed(0)}%;background:var(--ac)"></div></div></td></tr>`).join('');el.innerHTML=`<div class="card"><h3>室タイプ別 明細（${m}）</h3><div class="scroll-table"><table><tr><th>室タイプ</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">構成比</th></tr>${rows}</table></div></div><div class="grid-2"><div class="card"><h3>室タイプ別 売上</h3><div class="chart-wrap"><canvas id="room-rev"></canvas></div></div><div class="card"><h3>室タイプ別 ADR</h3><div class="chart-wrap"><canvas id="room-adr"></canvas></div></div></div>`;const colors=['#4f8ef7','#f59e0b','#22c55e','#ef4444','#a78bfa','#ec4899','#06b6d4','#f97316','#14b8a6','#8b5cf6'];makeChart('room-rev',{type:'bar',data:{labels:rd.map(r=>r.name.length>14?r.name.slice(0,14)+'…':r.name),datasets:[{data:rd.map(r=>r.revenue),backgroundColor:rd.map((_,i)=>colors[i%colors.length]),borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}},y:{ticks:{color:'#e8eaf0',font:{size:10}}}}}});const sorted=[...rd].sort((a,b)=>b.adr-a.adr);makeChart('room-adr',{type:'bar',data:{labels:sorted.map(r=>r.name.length>14?r.name.slice(0,14)+'…':r.name),datasets:[{data:sorted.map(r=>r.adr),backgroundColor:sorted.map((_,i)=>`hsl(${210+i*25},65%,55%)`),borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+fmt(v)}},y:{ticks:{color:'#e8eaf0',font:{size:10}}}}}});}
 
-function drawRoomMonthly(){const el=document.getElementById('tab-room_monthly');const allMonths=DATA.months;const rmData=DATA.room_monthly||{};const yoyMonths=Object.keys(rmData);if(!yoyMonths.length){const roomSet=new Set();allMonths.forEach(m=>{(DATA.room[m]||[]).forEach(r=>roomSet.add(r.name));});const roomNames=[...roomSet];let thMonths=allMonths.map(m=>`<th class="num" colspan="3" style="text-align:center;border-bottom:1px solid var(--bd)">${m}</th>`).join('');let thSub=allMonths.map(()=>`<th class="num">室数</th><th class="num">売上</th><th class="num">ADR</th>`).join('');let rows=roomNames.map(name=>{let cells=allMonths.map(m=>{const rd=(DATA.room[m]||[]).find(r=>r.name===name);if(!rd)return`<td class="num">-</td><td class="num">-</td><td class="num">-</td>`;return`<td class="num">${rd.rooms}</td><td class="num">${fmtY(rd.revenue)}</td><td class="num">${fmtY(rd.adr)}</td>`;}).join('');return`<tr><td style="white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis">${name}</td>${cells}</tr>`;}).join('');let totalCells=allMonths.map(m=>{const rd=DATA.room[m]||[];const tRooms=rd.reduce((a,r)=>a+r.rooms,0);const tRev=rd.reduce((a,r)=>a+r.revenue,0);const tRn=rd.reduce((a,r)=>a+r.rn,0);return`<td class="num" style="font-weight:500">${tRooms}</td><td class="num" style="font-weight:500">${fmtY(tRev)}</td><td class="num" style="font-weight:500">${tRn?fmtY(Math.round(tRev/tRn)):'-'}</td>`;}).join('');el.innerHTML=`<div class="card"><h3>室タイプ別 月次推移</h3><div class="scroll-table" style="overflow-x:auto"><table><tr><th rowspan="2" style="min-width:160px">室タイプ</th>${thMonths}</tr><tr>${thSub}</tr>${rows}<tr style="border-top:2px solid var(--bd)"><td style="font-weight:500">合計</td>${totalCells}</tr></table></div></div>`;return;}if(!window._rmMonth)window._rmMonth=yoyMonths[yoyMonths.length-1];const ym=window._rmMonth;const rd=rmData[ym]||[];let monthBtns=yoyMonths.map(m=>`<button class="toggle-btn ${ym===m?'active':''}" onclick="window._rmMonth='${m}';drawRoomMonthly()">${m}</button>`).join('');let rows2=rd.map(r=>{const rDiff=r.py_rooms?((r.rooms-r.py_rooms)/r.py_rooms*100).toFixed(1):'-';const aDiff=r.py_adr?((r.adr-r.py_adr)/r.py_adr*100).toFixed(1):'-';return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td><td class="num">${r.rooms}</td><td class="num">${r.py_rooms||'-'}</td><td class="num ${Number(rDiff)>=0?'up':'dn'}">${rDiff}%</td><td class="num">${fmtY(r.adr)}</td><td class="num">${r.py_adr?fmtY(r.py_adr):'-'}</td><td class="num ${Number(aDiff)>=0?'up':'dn'}">${aDiff}%</td></tr>`;}).join('');el.innerHTML=`<div class="filter-row"><label>表示月：</label>${monthBtns}</div><div class="card"><h3>室タイプ別 前年比較（${ym}）</h3><div class="scroll-table"><table><tr><th>室タイプ</th><th class="num">今年室数</th><th class="num">前年室数</th><th class="num">室数比</th><th class="num">今年ADR</th><th class="num">前年ADR</th><th class="num">ADR比</th></tr>${rows2}</table></div></div><div class="grid-2"><div class="card"><h3>室タイプ別 室数比較</h3><div class="chart-wrap"><canvas id="rm-rooms"></canvas></div></div><div class="card"><h3>室タイプ別 ADR比較</h3><div class="chart-wrap"><canvas id="rm-adr"></canvas></div></div></div>`;const labels=rd.map(r=>r.name.length>12?r.name.slice(0,12)+'…':r.name);makeChart('rm-rooms',{type:'bar',data:{labels,datasets:[{label:'今年',data:rd.map(r=>r.rooms),backgroundColor:'rgba(79,142,247,.6)',borderRadius:3},{label:'前年',data:rd.map(r=>r.py_rooms),backgroundColor:'rgba(255,255,255,.15)',borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}},y:{ticks:{color:'#e8eaf0',font:{size:10}}}}}});makeChart('rm-adr',{type:'bar',data:{labels,datasets:[{label:'今年',data:rd.map(r=>r.adr),backgroundColor:'rgba(52,201,142,.6)',borderRadius:3},{label:'前年',data:rd.map(r=>r.py_adr),backgroundColor:'rgba(255,255,255,.15)',borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+fmt(v)}},y:{ticks:{color:'#e8eaf0',font:{size:10}}}}}});}
+/* ========== ROOM MONTHLY: 年タブ + 12ヶ月テーブル + 前年比較 ========== */
+function drawRoomMonthly(){
+  const el=document.getElementById('tab-room_monthly');
+  const years=DATA.years||[];
+  if(!years.length){el.innerHTML='<div class="no-data">データがありません</div>';return;}
+  if(!window._rmYear)window._rmYear=years[years.length-1];
+  const yr=window._rmYear;
+  const prevYr=String(Number(yr)-1);
+  let yearBtns=years.map(y=>`<button class="toggle-btn ${yr===y?'active':''}" onclick="window._rmYear='${y}';drawRoomMonthly()">${y}</button>`).join('');
+  const mm12=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  // Collect all room names for this year
+  const roomSet=new Set();
+  mm12.forEach(mm=>{const ym=yr+'-'+mm;(DATA.room[ym]||[]).forEach(r=>roomSet.add(r.name));});
+  mm12.forEach(mm=>{const ym=prevYr+'-'+mm;(DATA.room[ym]||[]).forEach(r=>roomSet.add(r.name));});
+  const roomNames=[...roomSet];
+  // Build table header: room | Jan(rooms,ADR,py_rooms,py_ADR,diff) | Feb... 
+  let thMonths=mm12.map(mm=>`<th class="num" colspan="4" style="text-align:center;border-bottom:1px solid var(--bd)">${Number(mm)}月</th>`).join('');
+  let thSub=mm12.map(()=>`<th class="num">室数</th><th class="num">PY室数</th><th class="num">ADR</th><th class="num">PY ADR</th>`).join('');
+  let rows=roomNames.map(name=>{
+    let cells=mm12.map(mm=>{
+      const ym=yr+'-'+mm;const pyYm=prevYr+'-'+mm;
+      const c=(DATA.room[ym]||[]).find(r=>r.name===name);
+      const p=(DATA.room[pyYm]||[]).find(r=>r.name===name);
+      const cr=c?c.rooms:'-';const pr=p?p.rooms:'-';
+      const ca=c?fmtY(c.adr):'-';const pa=p?fmtY(p.adr):'-';
+      return`<td class="num">${cr}</td><td class="num" style="color:var(--mu)">${pr}</td><td class="num">${ca}</td><td class="num" style="color:var(--mu)">${pa}</td>`;
+    }).join('');
+    return`<tr><td style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis">${name}</td>${cells}</tr>`;
+  }).join('');
+  // Totals
+  let totalCells=mm12.map(mm=>{
+    const ym=yr+'-'+mm;const pyYm=prevYr+'-'+mm;
+    const rd=DATA.room[ym]||[];const prd=DATA.room[pyYm]||[];
+    const tR=rd.reduce((a,r)=>a+r.rooms,0);const tRev=rd.reduce((a,r)=>a+r.revenue,0);const tRn=rd.reduce((a,r)=>a+r.rn,0);
+    const pR=prd.reduce((a,r)=>a+r.rooms,0);const pRev=prd.reduce((a,r)=>a+r.revenue,0);const pRn=prd.reduce((a,r)=>a+r.rn,0);
+    return`<td class="num" style="font-weight:500">${tR||'-'}</td><td class="num" style="color:var(--mu)">${pR||'-'}</td><td class="num" style="font-weight:500">${tRn?fmtY(Math.round(tRev/tRn)):'-'}</td><td class="num" style="color:var(--mu)">${pRn?fmtY(Math.round(pRev/pRn)):'-'}</td>`;
+  }).join('');
+  el.innerHTML=`<div class="filter-row"><label>年：</label>${yearBtns}<span style="color:var(--mu);font-size:10px;margin-left:12px">※ PY = 前年(${prevYr}年)</span></div>
+  <div class="card"><h3>室タイプ別 月次推移（${yr}年 vs ${prevYr}年）</h3>
+    <div class="scroll-table" style="overflow-x:auto"><table style="min-width:1600px">
+      <tr><th rowspan="2" style="min-width:140px;position:sticky;left:0;background:var(--sf);z-index:1">室タイプ</th>${thMonths}</tr>
+      <tr>${thSub}</tr>${rows}
+      <tr style="border-top:2px solid var(--bd)"><td style="font-weight:500;position:sticky;left:0;background:var(--sf);z-index:1">合計</td>${totalCells}</tr>
+    </table></div></div>`;
+}
 
 function drawPlan(m){const el=document.getElementById('tab-plan');const pd=DATA.plan[m]||[];if(!pd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}let rows=pd.map((p,i)=>`<tr><td>${i+1}</td><td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.full_name}">${p.name}</td><td class="num">${p.count}</td><td class="num">${fmtY(p.revenue)}</td><td class="num">${fmtY(p.avg_price)}</td><td class="num">${p.persons}</td><td><span class="pill pill-blue">${p.top_channel}</span></td></tr>`).join('');el.innerHTML=`<div class="card"><h3>プラン一覧 <span class="badge">${pd.length}プラン</span></h3><div class="scroll-table"><table><tr><th>#</th><th>プラン名</th><th class="num">件数</th><th class="num">売上</th><th class="num">平均単価</th><th class="num">人数</th><th>主要CH</th></tr>${rows}</table></div></div>`;}
 
 function drawCancel(m){const el=document.getElementById('tab-cancel');const cc=DATA.cancel_channels[m]||[];const cd=DATA.cancel[m]||[];if(!cc.length){el.innerHTML='<div class="no-data">この月のキャンセルデータはありません</div>';return;}const totalCancel=cc.reduce((a,c)=>a+c.cancel,0);const totalLost=cc.reduce((a,c)=>a+c.revenue_lost,0);const totalAll=cc.reduce((a,c)=>a+c.total,0);let chRows=cc.map(c=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(c.name)};margin-right:6px"></span>${c.name}</td><td class="num">${c.cancel}</td><td class="num">${c.total}</td><td class="num ${c.rate>50?'dn':c.rate>30?'':'up'}">${c.rate}%</td><td class="num">${fmtY(c.revenue_lost)}</td></tr>`).join('');let detRows=cd.slice(0,50).map(c=>`<tr><td><span class="pill pill-blue">${c.channel}</span></td><td>${c.ci_date}</td><td>${c.cancel_date||'-'}</td><td>${c.book_date||'-'}</td><td class="num">${fmtY(c.revenue)}</td><td>${c.room}</td><td class="num">${c.adults}</td></tr>`).join('');el.innerHTML=`<div class="kpi-row"><div class="kpi red"><div class="label">キャンセル数</div><div class="value">${totalCancel}<span class="unit">件</span></div></div><div class="kpi orange"><div class="label">キャンセル率</div><div class="value">${pct(totalCancel,totalAll)}<span class="unit">%</span></div></div><div class="kpi red"><div class="label">損失売上</div><div class="value">${(totalLost/10000).toFixed(0)}<span class="unit">万円</span></div></div></div><div class="grid-2"><div class="card"><h3>チャネル別キャンセル数</h3><div class="chart-wrap"><canvas id="cancel-bar"></canvas></div></div><div class="card"><h3>チャネル別キャンセル率</h3><div class="chart-wrap"><canvas id="cancel-rate"></canvas></div></div></div><div class="card"><h3>キャンセル詳細</h3><div class="scroll-table"><table><tr><th>チャネル</th><th>CI日</th><th>キャンセル日</th><th>予約日</th><th class="num">金額</th><th>室タイプ</th><th class="num">大人</th></tr>${detRows}</table></div></div>`;makeChart('cancel-bar',{type:'bar',data:{labels:cc.map(c=>c.name),datasets:[{label:'キャンセル',data:cc.map(c=>c.cancel),backgroundColor:'rgba(247,95,95,.7)',borderRadius:3},{label:'成立',data:cc.map(c=>c.total-c.cancel),backgroundColor:'rgba(52,201,142,.5)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{stacked:true,ticks:{color:'#7a7f8e'}},y:{stacked:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});makeChart('cancel-rate',{type:'bar',data:{labels:cc.map(c=>c.name),datasets:[{data:cc.map(c=>c.rate),backgroundColor:cc.map(c=>c.rate>50?'rgba(247,95,95,.7)':c.rate>30?'rgba(247,163,79,.7)':'rgba(52,201,142,.5)'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7a7f8e'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>v+'%'}}}}});}
 
-let pickupMetric='rooms';let pickupPeriod='all';let pickupMaCh='__all__';
-function drawPickup(){const el=document.getElementById('tab-pickup');const allCh=DATA.pickup_channels;let metricBtns=['rooms','rn','revenue','persons'].map(m=>`<button class="toggle-btn ${pickupMetric===m?'active':''}" onclick="pickupMetric='${m}';drawPickup()">${{rooms:'室数',rn:'RN',revenue:'売上',persons:'人数'}[m]}</button>`).join('');let periodBtns=[['all','全期間'],['30','直近30日'],['60','直近60日'],['90','直近90日'],['180','直近180日']].map(([v,l])=>`<button class="toggle-btn ${pickupPeriod===v?'active':''}" onclick="pickupPeriod='${v}';drawPickup()">${l}</button>`).join('');let maChBtns=`<button class="toggle-btn ${pickupMaCh==='__all__'?'active':''}" onclick="pickupMaCh='__all__';drawPickup()">全体</button>`;maChBtns+=allCh.map(ch=>`<button class="toggle-btn ${pickupMaCh===ch?'active':''}" onclick="pickupMaCh='${ch}';drawPickup()">${ch}</button>`).join('');const today=DATA.pickup.length?DATA.pickup[DATA.pickup.length-1].date:'';const cutoff=pickupPeriod==='all'?'':(() => {const d=new Date(today);d.setDate(d.getDate()-Number(pickupPeriod));return d.toISOString().slice(0,10);})();const filteredPickup=DATA.pickup.filter(p=>!cutoff||p.date>=cutoff);const dailyAgg=filteredPickup.map(p=>{const agg={date:p.date,dow:p.dow,channels:{}};let total=0,cancelTotal=0;allCh.forEach(ch=>{let val=0,cancelVal=0;const chData=p.channels[ch]||{};Object.entries(chData).forEach(([cm,d])=>{val+=d[pickupMetric]||0;cancelVal+=d.cancel||0;});agg.channels[ch]=val;total+=val;cancelTotal+=cancelVal;});agg.total=total;agg.cancel=cancelTotal;agg.net=total-cancelTotal;return agg;});let rows=dailyAgg.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date.slice(5)} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmt(d.total)}</td><td class="num ${d.net<0?'dn':'up'}">${d.net>=0?'+':''}${d.net}</td>${allCh.map(ch=>`<td class="num">${d.channels[ch]||'-'}</td>`).join('')}</tr>`;}).join('');el.innerHTML=`<div class="card"><h3>受信日別 チャネル別 販売室数</h3><div class="filter-row"><label>表示指標：</label>${metricBtns}<label style="margin-left:12px">期間：</label>${periodBtns}</div><div class="chart-wrap tall"><canvas id="pickup-stack"></canvas></div></div><div class="card"><h3>移動平均トレンド</h3><div class="filter-row" style="flex-wrap:wrap"><label>チャネル：</label>${maChBtns}</div><div class="grid-2"><div class="chart-wrap tall"><canvas id="pickup-ma7"></canvas></div><div class="chart-wrap tall"><canvas id="pickup-ma30"></canvas></div></div></div><div class="card"><h3>Pickup明細</h3><div class="scroll-table"><table><tr><th>受信日</th><th class="num">合計</th><th class="num">ネット</th>${allCh.map(ch=>`<th class="num">${ch}</th>`).join('')}</tr>${rows}</table></div></div>`;const datasets=allCh.map(ch=>({label:ch,data:dailyAgg.map(d=>d.channels[ch]||0),backgroundColor:chColor(ch),borderRadius:1}));makeChart('pickup-stack',{type:'bar',data:{labels:dailyAgg.map(d=>d.date.slice(5)+' '+d.dow),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7a7f8e',font:{size:9}}},y:{stacked:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});function ma(arr,n){return arr.map((_,i)=>{if(i<n-1)return null;const s=arr.slice(i-n+1,i+1);return Math.round(s.reduce((a,b)=>a+b,0)/n);});}let maData;if(pickupMaCh==='__all__'){maData=dailyAgg.map(d=>d.total);}else{maData=dailyAgg.map(d=>d.channels[pickupMaCh]||0);}const maLabel=pickupMaCh==='__all__'?'全体':pickupMaCh;makeChart('pickup-ma7',{type:'line',data:{labels:dailyAgg.map(d=>d.date.slice(5)),datasets:[{label:maLabel+' 日次',data:maData,borderColor:'rgba(255,255,255,.2)',pointRadius:1,tension:.2},{label:'7日MA',data:ma(maData,7),borderColor:'#4f8ef7',pointRadius:0,tension:.4,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}},title:{display:true,text:'7日移動平均',color:'#e8eaf0',font:{size:12}}},scales:{x:{ticks:{color:'#7a7f8e',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});makeChart('pickup-ma30',{type:'line',data:{labels:dailyAgg.map(d=>d.date.slice(5)),datasets:[{label:maLabel+' 日次',data:maData,borderColor:'rgba(255,255,255,.2)',pointRadius:1,tension:.2},{label:'30日MA',data:ma(maData,30),borderColor:'#f59e0b',pointRadius:0,tension:.4,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}},title:{display:true,text:'30日移動平均',color:'#e8eaf0',font:{size:12}}},scales:{x:{ticks:{color:'#7a7f8e',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});}
+/* ========== PICKUP: 期間フィルタ + MA切替 + 前年対比 ========== */
+let pickupMetric='rooms';let pickupPeriod='90';let pickupMaCh='__all__';let pickupMA7=true;let pickupMA30=true;let pickupShowPY=false;
+function drawPickup(){
+  const el=document.getElementById('tab-pickup');const allCh=DATA.pickup_channels;
+  let metricBtns=['rooms','rn','revenue','persons'].map(m=>`<button class="toggle-btn ${pickupMetric===m?'active':''}" onclick="pickupMetric='${m}';drawPickup()">${{rooms:'室数',rn:'RN',revenue:'売上',persons:'人数'}[m]}</button>`).join('');
+  let periodBtns=[['all','全期間'],['30','直近30日'],['60','直近60日'],['90','直近90日'],['180','直近180日']].map(([v,l])=>`<button class="toggle-btn ${pickupPeriod===v?'active':''}" onclick="pickupPeriod='${v}';drawPickup()">${l}</button>`).join('');
+  let maChBtns=`<button class="toggle-btn ${pickupMaCh==='__all__'?'active':''}" onclick="pickupMaCh='__all__';drawPickup()">全体</button>`;
+  maChBtns+=allCh.map(ch=>`<button class="toggle-btn ${pickupMaCh===ch?'active':''}" onclick="pickupMaCh='${ch}';drawPickup()">${ch}</button>`).join('');
+  let maBtns=`<button class="toggle-btn ${pickupMA7?'active':''}" onclick="pickupMA7=!pickupMA7;drawPickup()">7日MA</button>`;
+  maBtns+=`<button class="toggle-btn ${pickupMA30?'active':''}" onclick="pickupMA30=!pickupMA30;drawPickup()">30日MA</button>`;
+  let pyBtn=`<button class="toggle-btn ${pickupShowPY?'active':''}" onclick="pickupShowPY=!pickupShowPY;drawPickup()">前年対比</button>`;
+  // Filter by period
+  const today=DATA.pickup.length?DATA.pickup[DATA.pickup.length-1].date:'';
+  const cutoff=pickupPeriod==='all'?'':(()=>{const d=new Date(today);d.setDate(d.getDate()-Number(pickupPeriod));return d.toISOString().slice(0,10);})();
+  const filtered=DATA.pickup.filter(p=>!cutoff||p.date>=cutoff);
+  // Aggregate
+  const dailyAgg=filtered.map(p=>{const agg={date:p.date,dow:p.dow,channels:{}};let total=0,cancelTotal=0;allCh.forEach(ch=>{let val=0,cv=0;const cd=p.channels[ch]||{};Object.entries(cd).forEach(([cm,d])=>{val+=d[pickupMetric]||0;cv+=d.cancel||0;});agg.channels[ch]=val;total+=val;cancelTotal+=cv;});agg.total=total;agg.cancel=cancelTotal;agg.net=total-cancelTotal;return agg;});
+  // PY data (same dates -1 year)
+  let pyAgg=[];
+  if(pickupShowPY){
+    const pyLookup={};DATA.pickup.forEach(p=>{pyLookup[p.date]=p;});
+    pyAgg=dailyAgg.map(d=>{const pyDate=(parseInt(d.date.slice(0,4))-1)+d.date.slice(4);const pp=pyLookup[pyDate];if(!pp)return{total:0};let total=0;allCh.forEach(ch=>{const cd=pp?pp.channels[ch]||{}:{};Object.entries(cd).forEach(([cm,dd])=>{total+=dd[pickupMetric]||0;});});return{total};});
+  }
+  // Table
+  let rows=dailyAgg.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date.slice(5)} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmt(d.total)}</td><td class="num ${d.net<0?'dn':'up'}">${d.net>=0?'+':''}${d.net}</td>${allCh.map(ch=>`<td class="num">${d.channels[ch]||'-'}</td>`).join('')}</tr>`;}).join('');
+  el.innerHTML=`
+  <div class="card"><h3>受信日別 チャネル別 販売室数</h3>
+    <div class="filter-row"><label>表示指標：</label>${metricBtns}</div>
+    <div class="filter-row"><label>期間：</label>${periodBtns}</div>
+    <div class="chart-wrap tall"><canvas id="pickup-stack"></canvas></div>
+  </div>
+  <div class="card"><h3>移動平均トレンド</h3>
+    <div class="filter-row" style="flex-wrap:wrap"><label>チャネル：</label>${maChBtns}</div>
+    <div class="filter-row"><label>MA：</label>${maBtns}${pyBtn}</div>
+    <div class="chart-wrap tall"><canvas id="pickup-ma"></canvas></div>
+  </div>
+  <div class="card"><h3>Pickup明細</h3><div class="scroll-table"><table>
+    <tr><th>受信日</th><th class="num">合計</th><th class="num">ネット</th>${allCh.map(ch=>`<th class="num">${ch}</th>`).join('')}</tr>${rows}</table></div></div>`;
+  // Stacked bar
+  const datasets=allCh.map(ch=>({label:ch,data:dailyAgg.map(d=>d.channels[ch]||0),backgroundColor:chColor(ch),borderRadius:1}));
+  makeChart('pickup-stack',{type:'bar',data:{labels:dailyAgg.map(d=>d.date.slice(5)+' '+d.dow),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7a7f8e',font:{size:9}}},y:{stacked:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});
+  // MA chart
+  function ma(arr,n){return arr.map((_,i)=>{if(i<n-1)return null;const s=arr.slice(i-n+1,i+1);return Math.round(s.reduce((a,b)=>a+b,0)/n);});}
+  let maData=pickupMaCh==='__all__'?dailyAgg.map(d=>d.total):dailyAgg.map(d=>d.channels[pickupMaCh]||0);
+  const maLabel=pickupMaCh==='__all__'?'全体':pickupMaCh;
+  const maSets=[{label:maLabel+' 日次',data:maData,borderColor:'rgba(255,255,255,.2)',pointRadius:1,tension:.2}];
+  if(pickupMA7)maSets.push({label:'7日MA',data:ma(maData,7),borderColor:'#4f8ef7',pointRadius:0,tension:.4,borderWidth:2});
+  if(pickupMA30)maSets.push({label:'30日MA',data:ma(maData,30),borderColor:'#f59e0b',pointRadius:0,tension:.4,borderWidth:2});
+  if(pickupShowPY&&pyAgg.length)maSets.push({label:'前年',data:pyAgg.map(p=>p.total),borderColor:'#f75f5f',borderDash:[5,3],pointRadius:0,tension:.3,borderWidth:1.5});
+  makeChart('pickup-ma',{type:'line',data:{labels:dailyAgg.map(d=>d.date.slice(5)),datasets:maSets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#7a7f8e',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});
+}
 
 function drawLeadtime(){const el=document.getElementById('tab-leadtime');el.innerHTML=`<div class="kpi-row"><div class="kpi blue"><div class="label">平均リードタイム</div><div class="value">${DATA.leadtime_stats.avg}<span class="unit">日</span></div></div><div class="kpi green"><div class="label">中央値</div><div class="value">${DATA.leadtime_stats.median}<span class="unit">日</span></div></div></div><div class="card"><h3>リードタイム分布（日別・0〜180日）</h3><div class="chart-wrap tall"><canvas id="lt-chart"></canvas></div></div>`;makeChart('lt-chart',{type:'bar',data:{labels:DATA.leadtime.map(d=>d.days),datasets:[{data:DATA.leadtime.map(d=>d.count),backgroundColor:'rgba(79,142,247,.5)',borderRadius:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#7a7f8e',callback:function(v,i){return i%15===0?i+'日':'';}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e'}}}}});}
 
@@ -280,6 +406,7 @@ function drawTravel(m){const el=document.getElementById('tab-travel');const td=D
 
 showTab('monthly',document.querySelector('.nav-tab'));
 switchAllTabs(DATA.default_month);
+
 """
 
 if __name__ == "__main__":
