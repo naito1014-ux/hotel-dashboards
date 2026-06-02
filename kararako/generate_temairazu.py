@@ -230,20 +230,19 @@ function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){
 
 function drawMonthly(m){const el=document.getElementById('tab-monthly');const md=DATA.monthly[m];if(!md){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}const dd=DATA.daily[m]||[];const chRevMap={};dd.forEach(d=>{const tr=d.rooms;Object.entries(d.channels).forEach(([ch,rooms])=>{if(!chRevMap[ch])chRevMap[ch]={rooms:0,revenue:0,rn:0,persons:0};chRevMap[ch].rooms+=rooms;chRevMap[ch].revenue+=tr>0?Math.round(d.revenue*rooms/tr):0;chRevMap[ch].rn+=rooms;chRevMap[ch].persons+=tr>0?Math.round(d.persons*rooms/tr):0;});});const chList=Object.entries(chRevMap).sort((a,b)=>b[1].revenue-a[1].revenue).map(([ch,d])=>({name:ch,rooms:d.rooms,rn:d.rn,revenue:d.revenue,persons:d.persons,adr:d.rn>0?Math.round(d.revenue/d.rn):0}));const totalRev=chList.reduce((a,c)=>a+c.revenue,0);let chRows=chList.map(c=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(c.name)};margin-right:6px"></span>${c.name}</td><td class="num">${fmt(c.rooms)}</td><td class="num">${fmt(c.rn)}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(c.adr)}</td><td class="num">${fmt(c.persons)}</td><td class="num">${pct(c.revenue,totalRev)}%</td></tr>`).join('');el.innerHTML=`<div class="kpi-row"><div class="kpi blue"><div class="label">売上合計</div><div class="value">${(md.revenue/10000).toFixed(0)}<span class="unit">万円</span></div></div><div class="kpi green"><div class="label">予約件数</div><div class="value">${fmt(md.rooms)}<span class="unit">件</span></div></div><div class="kpi blue"><div class="label">室泊数 RN</div><div class="value">${fmt(md.rn)}<span class="unit">RN</span></div></div><div class="kpi orange"><div class="label">ADR</div><div class="value">${fmt(md.adr)}<span class="unit">円</span></div></div><div class="kpi green"><div class="label">人泊単価</div><div class="value">${fmt(md.per_person)}<span class="unit">円</span></div></div><div class="kpi red"><div class="label">キャンセル率</div><div class="value">${md.cancel_rate}<span class="unit">%</span></div></div></div><div class="grid-2"><div class="card"><h3>チャネル別構成</h3><div class="chart-wrap"><canvas id="monthly-pie"></canvas></div></div><div class="card"><h3>チャネル別明細</h3><div class="scroll-table"><table><tr><th>チャネル</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">構成比</th></tr>${chRows}</table></div></div></div>`;const cData=chList.filter(c=>c.revenue>0);makeChart('monthly-pie',{type:'doughnut',data:{labels:cData.map(c=>c.name),datasets:[{data:cData.map(c=>c.revenue),backgroundColor:cData.map(c=>chColor(c.name)),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': \u00a5'+fmt(ctx.raw)+' ('+pct(ctx.raw,totalRev)+'%)'}}}}});}
 
-/* ========== YOY: 先行予約 同日対比 ========== */
-function calcYoYPosition(baseDate, yearOffset){
+/* ========== YOY: 先行予約 同日対比（テーブル形式） ========== */
+function calcPosition(baseDate){
+  // baseDate以前に受信した予約を、宿泊月×チャネル別に集計
   const br=DATA.bookings_raw;
-  const result={};
+  const baseYear=parseInt(baseDate.slice(0,4));
+  const result={};// {ci_month: {ch: {rooms,rn,rev,ppl}}}
   br.forEach(b=>{
     if(b.bd<=baseDate && b.k===0){
-      const ciYear=parseInt(b.ci.slice(0,4));
-      const baseYear=parseInt(baseDate.slice(0,4));
-      if(ciYear===baseYear+yearOffset){
-        const mm=b.ci.slice(5,7);
-        if(!result[mm])result[mm]={rooms:0,rn:0,revenue:0,persons:0,channels:{}};
-        result[mm].rooms+=b.rooms;result[mm].rn+=b.rn;result[mm].revenue+=b.rev;result[mm].persons+=b.ppl;
-        result[mm].channels[b.ch]=(result[mm].channels[b.ch]||0)+b.rooms;
-      }
+      const ci=b.ci;// "YYYY-MM"
+      if(!result[ci])result[ci]={};
+      if(!result[ci][b.ch])result[ci][b.ch]={rooms:0,rn:0,rev:0,ppl:0};
+      const d=result[ci][b.ch];
+      d.rooms+=b.rooms;d.rn+=b.rn;d.rev+=b.rev;d.ppl+=b.ppl;
     }
   });
   return result;
@@ -257,37 +256,93 @@ function drawYoY(){
   if(!window._yoyBase)window._yoyBase=latestDate;
   const base=window._yoyBase;
   const baseYear=parseInt(base.slice(0,4));
+  const baseMM=base.slice(5,7);
   const prevBase=(baseYear-1)+base.slice(4);
-  const cur=calcYoYPosition(base,0);
-  const prev=calcYoYPosition(prevBase,-1);
-  const allMM=[...new Set([...Object.keys(cur),...Object.keys(prev)])].sort();
-  const totalCur=allMM.reduce((a,mm)=>a+(cur[mm]?cur[mm].revenue:0),0);
-  const totalPrev=allMM.reduce((a,mm)=>a+(prev[mm]?prev[mm].revenue:0),0);
-  const diffPct=totalPrev?((totalCur-totalPrev)/totalPrev*100).toFixed(1):'-';
-  // Channel breakdown
-  const allCh=new Set();
-  allMM.forEach(mm=>{if(cur[mm])Object.keys(cur[mm].channels).forEach(c=>allCh.add(c));if(prev[mm])Object.keys(prev[mm].channels).forEach(c=>allCh.add(c));});
-  const chList=[...allCh];
-  let rows=allMM.map(mm=>{
-    const c=cur[mm]||{rooms:0,rn:0,revenue:0,persons:0};
-    const p=prev[mm]||{rooms:0,rn:0,revenue:0,persons:0};
-    const rdiff=p.revenue?((c.revenue-p.revenue)/p.revenue*100).toFixed(1):'-';
-    return`<tr><td>${baseYear}-${mm}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(p.revenue)}</td><td class="num ${Number(rdiff)>0?'up':'dn'}">${rdiff}%</td><td class="num">${c.rooms}</td><td class="num">${p.rooms}</td><td class="num">${c.rn?fmtY(Math.round(c.revenue/c.rn)):'-'}</td><td class="num">${p.rn?fmtY(Math.round(p.revenue/p.rn)):'-'}</td></tr>`;
-  }).join('');
+
+  // Calc positions
+  const cur=calcPosition(base);
+  const prev=calcPosition(prevBase);
+
+  // Stay months: from base month forward 6 months (current year)
+  const stayMonths=[];
+  for(let i=0;i<8;i++){
+    let mm=parseInt(baseMM)+i;
+    let yy=baseYear;
+    if(mm>12){mm-=12;yy+=1;}
+    stayMonths.push(yy+'-'+String(mm).padStart(2,'0'));
+  }
+
+  // Collect all channels
+  const chSet=new Set();
+  stayMonths.forEach(sm=>{
+    if(cur[sm])Object.keys(cur[sm]).forEach(c=>chSet.add(c));
+    const pSm=(baseYear-1)+sm.slice(4);
+    if(prev[pSm])Object.keys(prev[pSm]).forEach(c=>chSet.add(c));
+  });
+  const channels=[...chSet].sort();
+
+  // Build table per stay month
+  let tables='';
+  stayMonths.forEach(sm=>{
+    const pSm=(baseYear-1)+sm.slice(4);
+    const curM=cur[sm]||{};
+    const prevM=prev[pSm]||{};
+    // Totals
+    let tCur={rooms:0,rn:0,rev:0,ppl:0};
+    let tPrev={rooms:0,rn:0,rev:0,ppl:0};
+    channels.forEach(ch=>{
+      const c=curM[ch]||{rooms:0,rn:0,rev:0,ppl:0};
+      const p=prevM[ch]||{rooms:0,rn:0,rev:0,ppl:0};
+      tCur.rooms+=c.rooms;tCur.rn+=c.rn;tCur.rev+=c.rev;tCur.ppl+=c.ppl;
+      tPrev.rooms+=p.rooms;tPrev.rn+=p.rn;tPrev.rev+=p.rev;tPrev.ppl+=p.ppl;
+    });
+    if(tCur.rev===0&&tPrev.rev===0)return;// skip empty months
+
+    function diffStr(a,b){if(!b)return'-';const d=((a-b)/b*100).toFixed(1);return`<span class="${Number(d)>=0?'up':'dn'}">${Number(d)>0?'+':''}${d}%</span>`;}
+    function adr(rev,rn){return rn?Math.round(rev/rn):0;}
+    function pprice(rev,ppl){return ppl?Math.round(rev/ppl):0;}
+    function companion(ppl,rooms){return rooms?(ppl/rooms).toFixed(2):'-';}
+
+    let rows=channels.map(ch=>{
+      const c=curM[ch]||{rooms:0,rn:0,rev:0,ppl:0};
+      const p=prevM[ch]||{rooms:0,rn:0,rev:0,ppl:0};
+      return`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(ch)};margin-right:4px"></span>${ch}</td>
+        <td class="num">${fmtY(c.rev)}</td><td class="num" style="color:var(--mu)">${fmtY(p.rev)}</td><td class="num">${diffStr(c.rev,p.rev)}</td>
+        <td class="num">${c.rooms}</td><td class="num" style="color:var(--mu)">${p.rooms}</td><td class="num">${diffStr(c.rooms,p.rooms)}</td>
+        <td class="num">${fmtY(adr(c.rev,c.rn))}</td><td class="num" style="color:var(--mu)">${fmtY(adr(p.rev,p.rn))}</td>
+        <td class="num">${c.ppl}</td><td class="num" style="color:var(--mu)">${p.ppl}</td>
+        <td class="num">${fmtY(pprice(c.rev,c.ppl))}</td><td class="num" style="color:var(--mu)">${fmtY(pprice(p.rev,p.ppl))}</td>
+        <td class="num">${companion(c.ppl,c.rooms)}</td></tr>`;
+    }).join('');
+    // Total row
+    rows+=`<tr style="border-top:2px solid var(--bd);font-weight:500"><td>合計</td>
+      <td class="num">${fmtY(tCur.rev)}</td><td class="num" style="color:var(--mu)">${fmtY(tPrev.rev)}</td><td class="num">${diffStr(tCur.rev,tPrev.rev)}</td>
+      <td class="num">${tCur.rooms}</td><td class="num" style="color:var(--mu)">${tPrev.rooms}</td><td class="num">${diffStr(tCur.rooms,tPrev.rooms)}</td>
+      <td class="num">${fmtY(adr(tCur.rev,tCur.rn))}</td><td class="num" style="color:var(--mu)">${fmtY(adr(tPrev.rev,tPrev.rn))}</td>
+      <td class="num">${tCur.ppl}</td><td class="num" style="color:var(--mu)">${tPrev.ppl}</td>
+      <td class="num">${fmtY(pprice(tCur.rev,tCur.ppl))}</td><td class="num" style="color:var(--mu)">${fmtY(pprice(tPrev.rev,tPrev.ppl))}</td>
+      <td class="num">${companion(tCur.ppl,tCur.rooms)}</td></tr>`;
+
+    tables+=`<div class="card"><h3>宿泊月：${sm}（前年：${pSm}）</h3>
+      <div class="scroll-table" style="overflow-x:auto"><table>
+        <tr><th>チャネル</th><th class="num">売上今年</th><th class="num">売上前年</th><th class="num">売上比</th>
+        <th class="num">室数今</th><th class="num">室数前</th><th class="num">室数比</th>
+        <th class="num">ADR今</th><th class="num">ADR前</th>
+        <th class="num">人数今</th><th class="num">人数前</th>
+        <th class="num">客単価今</th><th class="num">客単価前</th>
+        <th class="num">同伴</th></tr>
+        ${rows}
+      </table></div></div>`;
+  });
+
   el.innerHTML=`
-  <div class="filter-row"><label>基準日：</label><input type="date" value="${base}" onchange="window._yoyBase=this.value;drawYoY()" style="color:var(--tx)"><button class="toggle-btn" onclick="window._yoyBase='${latestDate}';drawYoY()">最新日</button></div>
-  <div class="kpi-row">
-    <div class="kpi blue"><div class="label">${baseYear}年 売上計</div><div class="value">${(totalCur/10000).toFixed(0)}<span class="unit">万円</span></div></div>
-    <div class="kpi green"><div class="label">${baseYear-1}年 売上計</div><div class="value">${(totalPrev/10000).toFixed(0)}<span class="unit">万円</span></div></div>
-    <div class="kpi ${Number(diffPct)>=0?'green':'red'}"><div class="label">前年比</div><div class="value">${diffPct}<span class="unit">%</span></div></div>
+  <div class="filter-row">
+    <label>基準日：</label>
+    <input type="date" value="${base}" onchange="window._yoyBase=this.value;drawYoY()" style="color:var(--tx)">
+    <button class="toggle-btn" onclick="drawYoY()">表示</button>
   </div>
-  <div class="card"><h3>先行予約 同日対比（${base}時点 vs ${prevBase}時点）</h3><div class="chart-wrap tall"><canvas id="yoy-chart"></canvas></div></div>
-  <div class="card"><h3>月別明細</h3><div class="scroll-table"><table>
-    <tr><th>宿泊月</th><th class="num">今年売上</th><th class="num">前年売上</th><th class="num">前年比</th><th class="num">今年室数</th><th class="num">前年室数</th><th class="num">今年ADR</th><th class="num">前年ADR</th></tr>${rows}</table></div></div>`;
-  makeChart('yoy-chart',{type:'bar',data:{labels:allMM.map(mm=>baseYear+'-'+mm),datasets:[
-    {label:baseYear+'年',data:allMM.map(mm=>(cur[mm]||{revenue:0}).revenue),backgroundColor:'rgba(79,142,247,.6)',borderRadius:3},
-    {label:(baseYear-1)+'年',data:allMM.map(mm=>(prev[mm]||{revenue:0}).revenue),backgroundColor:'rgba(255,255,255,.15)',borderRadius:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#7a7f8e'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}}}}});
+  <p style="color:var(--mu);font-size:11px;margin-bottom:12px">${base}時点 vs ${prevBase}時点の先行予約残高を比較</p>
+  ${tables||'<div class="no-data">該当データがありません</div>'}`;
 }
 
 function drawDaily(m){const el=document.getElementById('tab-daily');const dd=DATA.daily[m]||[];if(!dd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}let rows=dd.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(79,142,247,.03)':''}"><td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${d.rooms}</td><td class="num">${d.rn}</td><td class="num">${fmtY(d.revenue)}</td><td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td><td class="num">${fmtY(d.per_person)}</td></tr>`;}).join('');el.innerHTML=`<div class="card"><h3>日別売上（${m}）</h3><div class="chart-wrap tall"><canvas id="daily-chart"></canvas></div></div><div class="card"><h3>日別明細</h3><div class="scroll-table"><table><tr><th>日付</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">人泊単価</th></tr>${rows}</table></div></div>`;makeChart('daily-chart',{type:'bar',data:{labels:dd.map(d=>d.date.slice(5)+' '+d.dow),datasets:[{type:'bar',label:'売上',data:dd.map(d=>d.revenue),backgroundColor:dd.map(d=>(d.dow==='土'||d.dow==='日')?'rgba(247,163,79,.6)':'rgba(79,142,247,.6)'),borderRadius:3,yAxisID:'y'},{type:'line',label:'ADR',data:dd.map(d=>d.adr),borderColor:'#f59e0b',backgroundColor:'transparent',pointRadius:2,tension:.3,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{color:'#7a7f8e',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#7a7f8e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}},y1:{position:'right',grid:{display:false},ticks:{color:'#f59e0b',callback:v=>'\u00a5'+fmt(v)}}},plugins:{legend:{labels:{color:'#e8eaf0'}}}}});}
