@@ -428,16 +428,18 @@ function drawRoomMonthly(){
   mm12.forEach(mm=>{const ym=prevYr+'-'+mm;(DATA.room[ym]||[]).forEach(r=>roomSet.add(r.name));});
   const roomNames=[...roomSet];
   // Build table header: room | Jan(rooms,ADR,py_rooms,py_ADR,diff) | Feb... 
-  let thMonths=mm12.map(mm=>`<th class="num" colspan="4" style="text-align:center;border-bottom:1px solid var(--bd)">${Number(mm)}月</th>`).join('');
-  let thSub=mm12.map(()=>`<th class="num">室数</th><th class="num">PY室数</th><th class="num">ADR</th><th class="num">PY ADR</th>`).join('');
+  let thMonths=mm12.map(mm=>`<th class="num" colspan="4" style="text-align:center;border-bottom:1px solid var(--bd);border-left:2px solid var(--bd)">${Number(mm)}月</th>`).join('');
+  let thSub=mm12.map(()=>`<th class="num" style="border-left:2px solid var(--bd)">稼働率</th><th class="num">PY稼</th><th class="num">ADR</th><th class="num">PY ADR</th>`).join('');
   let rows=roomNames.map(name=>{
     let cells=mm12.map(mm=>{
       const ym=yr+'-'+mm;const pyYm=prevYr+'-'+mm;
       const c=(DATA.room[ym]||[]).find(r=>r.name===name);
       const p=(DATA.room[pyYm]||[]).find(r=>r.name===name);
-      const cr=c?c.rooms:'-';const pr=p?p.rooms:'-';
+      const dim2=daysInMonth(yr+'-'+mm);const pr2=physicalRooms(name);
+      const occC=c&&pr2?((c.rn/(pr2*dim2))*100).toFixed(0)+'%':'-';
+      const occP=p&&pr2?((p.rn/(pr2*daysInMonth(prevYr+'-'+mm)))*100).toFixed(0)+'%':'-';
       const ca=c?fmtY(c.adr):'-';const pa=p?fmtY(p.adr):'-';
-      return`<td class="num">${cr}</td><td class="num" style="color:var(--mu)">${pr}</td><td class="num">${ca}</td><td class="num" style="color:var(--mu)">${pa}</td>`;
+      return`<td class="num" style="border-left:2px solid var(--bd)">${occC}</td><td class="num" style="color:var(--mu)">${occP}</td><td class="num">${ca}</td><td class="num" style="color:var(--mu)">${pa}</td>`;
     }).join('');
     return`<tr><td style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis">${name}</td>${cells}</tr>`;
   }).join('');
@@ -447,7 +449,11 @@ function drawRoomMonthly(){
     const rd=DATA.room[ym]||[];const prd=DATA.room[pyYm]||[];
     const tR=rd.reduce((a,r)=>a+r.rooms,0);const tRev=rd.reduce((a,r)=>a+r.revenue,0);const tRn=rd.reduce((a,r)=>a+r.rn,0);
     const pR=prd.reduce((a,r)=>a+r.rooms,0);const pRev=prd.reduce((a,r)=>a+r.revenue,0);const pRn=prd.reduce((a,r)=>a+r.rn,0);
-    return`<td class="num" style="font-weight:500">${tR||'-'}</td><td class="num" style="color:var(--mu)">${pR||'-'}</td><td class="num" style="font-weight:500">${tRn?fmtY(Math.round(tRev/tRn)):'-'}</td><td class="num" style="color:var(--mu)">${pRn?fmtY(Math.round(pRev/pRn)):'-'}</td>`;
+    const totalPhys=roomNames.reduce((a,n)=>a+physicalRooms(n),0);
+      const dim3=daysInMonth(yr+'-'+mm);const pdim3=daysInMonth(prevYr+'-'+mm);
+      const tOcc=totalPhys*dim3?(tRn/(totalPhys*dim3)*100).toFixed(0)+'%':'-';
+      const pOcc=totalPhys*pdim3?(pRn/(totalPhys*pdim3)*100).toFixed(0)+'%':'-';
+      return`<td class="num" style="font-weight:500;border-left:2px solid var(--bd)">${tOcc}</td><td class="num" style="color:var(--mu)">${pOcc}</td><td class="num" style="font-weight:500">${tRn?fmtY(Math.round(tRev/tRn)):'-'}</td><td class="num" style="color:var(--mu)">${pRn?fmtY(Math.round(pRev/pRn)):'-'}</td>`;
   }).join('');
   el.innerHTML=`<div class="filter-row"><label>年：</label>${yearBtns}<span style="color:var(--mu);font-size:10px;margin-left:12px">※ PY = 前年(${prevYr}年)</span></div>
   <div class="card"><h3>室タイプ別 月次推移（${yr}年 vs ${prevYr}年）</h3>
@@ -479,6 +485,9 @@ function drawPickup(){
   const filtered=DATA.pickup.filter(p=>!cutoff||p.date>=cutoff);
   // Aggregate
   const dailyAgg=filtered.map(p=>{const agg={date:p.date,dow:p.dow,channels:{}};let total=0,cancelTotal=0;allCh.forEach(ch=>{let val=0,cv=0;const cd=p.channels[ch]||{};Object.entries(cd).forEach(([cm,d])=>{val+=d[pickupMetric]||0;cv+=d.cancel||0;});agg.channels[ch]=val;total+=val;cancelTotal+=cv;});agg.total=total;agg.cancel=cancelTotal;agg.net=total-cancelTotal;return agg;});
+  const mainCh=['自社','一休.com','じゃらん','楽天トラベル','Booking.com','その他'];
+  const groupedAgg=dailyAgg.map(d=>{const g={};mainCh.forEach(mc=>{g[mc]=0;});
+    Object.entries(d.channels).forEach(([ch,val])=>{const gc=groupCh(ch);g[gc]=(g[gc]||0)+val;});return g;});
   // PY data (same dates -1 year)
   let pyAgg=[];
   if(pickupShowPY){
@@ -486,7 +495,7 @@ function drawPickup(){
     pyAgg=dailyAgg.map(d=>{const pyDate=(parseInt(d.date.slice(0,4))-1)+d.date.slice(4);const pp=pyLookup[pyDate];if(!pp)return{total:0,channels:{}};let total=0;const chData={};allCh.forEach(ch=>{let val=0;const cd=pp?pp.channels[ch]||{}:{};Object.entries(cd).forEach(([cm,dd])=>{val+=dd[pickupMetric]||0;});chData[ch]=val;total+=val;});return{total,channels:chData};});
   }
   // Table
-  let rows=dailyAgg.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(139,105,20,.04)':''}"><td>${d.date.slice(5)} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmt(d.total)}</td><td class="num ${d.net<0?'dn':'up'}">${d.net>=0?'+':''}${d.net}</td>${mainCh.map(ch=>`<td class="num">${groupedAgg[dailyAgg.indexOf(d)]?.[ch]||'-'}</td>`).join('')}</tr>`;}).join('');
+  let rows=dailyAgg.map((d,i)=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(139,105,20,.04)':''}"><td>${d.date.slice(5)} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${fmt(d.total)}</td><td class="num ${d.net<0?'dn':'up'}">${d.net>=0?'+':''}${d.net}</td>${mainCh.map(ch=>`<td class="num">${groupedAgg[i]?.[ch]||'-'}</td>`).join('')}</tr>`;}).join('');
   el.innerHTML=`
   <div class="card"><h3>受信日別 チャネル別 販売室数</h3>
     <div class="filter-row"><label>表示指標：</label>${metricBtns}</div>
@@ -501,10 +510,6 @@ function drawPickup(){
   <div class="card"><h3>Pickup明細</h3><div class="scroll-table"><table>
     <tr><th>受信日</th><th class="num">合計</th><th class="num">ネット</th>${mainCh.map(ch=>`<th class="num">${ch}</th>`).join('')}</tr>${rows}</table></div></div>`;
   // Stacked bar
-  const mainCh=['自社','一休.com','じゃらん','楽天トラベル','Booking.com','その他'];
-  // Reaggregate by grouped channel
-  const groupedAgg=dailyAgg.map(d=>{const g={};mainCh.forEach(mc=>{g[mc]=0;});
-    Object.entries(d.channels).forEach(([ch,val])=>{const gc=groupCh(ch);g[gc]=(g[gc]||0)+val;});return g;});
   const datasets=mainCh.map(ch=>({label:ch,data:groupedAgg.map(d=>d[ch]||0),backgroundColor:chColor(ch),borderRadius:1,hidden:true}));
   makeChart('pickup-stack',{type:'bar',data:{labels:dailyAgg.map(d=>d.date.slice(5)+' '+d.dow),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#2c2418',font:{size:10}},onClick:function(e,item,legend){const idx=item.datasetIndex;const ci=legend.chart;ci.data.datasets.forEach((ds,i)=>{const meta=ci.getDatasetMeta(i);meta.hidden=i===idx?!meta.hidden:true;});ci.update();}}},scales:{x:{stacked:true,ticks:{color:'#9a8e7e',font:{size:9}}},y:{stacked:true,grid:{color:'rgba(44,36,24,.08)'},ticks:{color:'#9a8e7e'}}}}});
   // MA chart
