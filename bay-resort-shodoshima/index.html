@@ -1325,9 +1325,9 @@ const OTA_SIM = {
   ],
   state: { otaIdx:0, viewMode:'sim', bulkRS:'', bulkRE:'', bulkSS:'', bulkSE:'', expanded:{}, dcf:{} },
   rows: [
-    {id:'r1', label:'企画A', category:'campaign', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busy', baseFeeOvr:'', cpnFee:'3', discType:'pct', discVal:'10', otaDisc:'10', enabled:true},
-    {id:'r2', label:'自社クーポン', category:'selfCoupon', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busySat', baseFeeOvr:'', cpnFee:'3', discType:'pct', discVal:'10', otaDisc:'', enabled:true},
-    {id:'r3', label:'割引プラン', category:'discountPlan', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busySat', baseFeeOvr:'', cpnFee:'', discType:'pct', discVal:'10', otaDisc:'', enabled:true},
+    {id:'r1', otaKey:'jalan', label:'企画A', category:'campaign', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busy', baseFeeOvr:'', cpnFee:'3', discType:'pct', discVal:'10', otaDisc:'10', enabled:true},
+    {id:'r2', otaKey:'jalan', label:'自社クーポン', category:'selfCoupon', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busySat', baseFeeOvr:'', cpnFee:'3', discType:'pct', discVal:'10', otaDisc:'', enabled:true},
+    {id:'r3', otaKey:'jalan', label:'割引プラン', category:'discountPlan', resvStart:'', resvEnd:'', stayStart:'', stayEnd:'', exclusion:'busySat', baseFeeOvr:'', cpnFee:'', discType:'pct', discVal:'10', otaDisc:'', enabled:true},
   ],
   records: [],
 };
@@ -1382,7 +1382,7 @@ function simCalc(p){
 }
 
 // ── 施策記録管理 ──────────────────────
-function simLoad(){try{OTA_SIM.records=JSON.parse(localStorage.getItem('ota_sim_r5c')||'[]');}catch(e){OTA_SIM.records=[];}try{const s=JSON.parse(localStorage.getItem('ota_sim_w5c')||'null');if(s&&s.length)OTA_SIM.rows=s;}catch(e){}}
+function simLoad(){try{OTA_SIM.records=JSON.parse(localStorage.getItem('ota_sim_r5c')||'[]');}catch(e){OTA_SIM.records=[];}try{const s=JSON.parse(localStorage.getItem('ota_sim_w5c')||'null');if(s&&s.length){s.forEach(function(r){if(!r.otaKey)r.otaKey='jalan';});OTA_SIM.rows=s;}}catch(e){}}
 function simSave(){try{localStorage.setItem('ota_sim_r5c',JSON.stringify(OTA_SIM.records));}catch(e){}try{localStorage.setItem('ota_sim_w5c',JSON.stringify(OTA_SIM.rows));}catch(e){}}
 function simAR(rec){OTA_SIM.records.push({...rec,id:'rec_'+Date.now(),predicted:rec.predicted||{},actual:{},createdAt:new Date().toISOString()});simSave();drawOtaSim();}
 function simDR(id){OTA_SIM.records=OTA_SIM.records.filter(r=>r.id!==id);simSave();drawOtaSim();}
@@ -1461,10 +1461,10 @@ function simLB(ok,cat){
   if(!boosts.length)return null;
   return Math.round(boosts.reduce((s,v)=>s+v,0)/boosts.length*100)/100;
 }
-function simAddRow(){OTA_SIM.rows.push({id:'r'+Date.now(),label:'企画'+(OTA_SIM.rows.filter(r=>r.category==='campaign').length+1),category:'campaign',resvStart:'',resvEnd:'',stayStart:'',stayEnd:'',exclusion:'busy',baseFeeOvr:'',cpnFee:'3',discType:'pct',discVal:'10',otaDisc:'10',enabled:true});simSave();drawOtaSim();}
+function simAddRow(){var ok=OTA_SIM.otas[OTA_SIM.state.otaIdx].key;OTA_SIM.rows.push({id:'r'+Date.now(),otaKey:ok,label:'企画'+(OTA_SIM.rows.filter(r=>r.category==='campaign').length+1),category:'campaign',resvStart:'',resvEnd:'',stayStart:'',stayEnd:'',exclusion:'busy',baseFeeOvr:'',cpnFee:'3',discType:'pct',discVal:'10',otaDisc:'10',enabled:true});simSave();drawOtaSim();}
 function simDelRow(id){OTA_SIM.rows=OTA_SIM.rows.filter(r=>r.id!==id);simSave();drawOtaSim();}
 function simUR(id,f,v){const r=OTA_SIM.rows.find(x=>x.id===id);if(r){r[f]=v;simSave();drawOtaSim();}}
-function simBulk(){const S=OTA_SIM.state;OTA_SIM.rows.forEach(r=>{if(S.bulkRS)r.resvStart=S.bulkRS;if(S.bulkRE)r.resvEnd=S.bulkRE;if(S.bulkSS)r.stayStart=S.bulkSS;if(S.bulkSE)r.stayEnd=S.bulkSE;});simSave();drawOtaSim();}
+function simBulk(){const S=OTA_SIM.state,ok=OTA_SIM.otas[S.otaIdx].key;OTA_SIM.rows.forEach(r=>{if(r.otaKey!==ok)return;if(S.bulkRS)r.resvStart=S.bulkRS;if(S.bulkRE)r.resvEnd=S.bulkRE;if(S.bulkSS)r.stayStart=S.bulkSS;if(S.bulkSE)r.stayEnd=S.bulkSE;});simSave();drawOtaSim();}
 function simTgl(id){OTA_SIM.state.expanded[id]=!OTA_SIM.state.expanded[id];drawOtaSim();}
 function simSetDCF(id,v){
   if(v==='all'){OTA_SIM.state.dcf[id]=['all'];}
@@ -1532,7 +1532,8 @@ function simRS(inp,fY,bdg){
   S.otas.forEach((o,i)=>{const a=i===S.state.otaIdx;html+='<button onclick="OTA_SIM.state.otaIdx='+i+';drawOtaSim()" style="padding:5px 14px;font-size:11px;border-radius:6px;cursor:pointer;border:'+(a?'2px solid '+o.color:'1px solid rgba(255,255,255,0.1)')+';background:'+(a?o.color+'20':'transparent')+';color:'+(a?o.color:'#7a7f8e')+'">'+o.name+'</button>';});
   html+='</div></div>';
 
-  // ② 条件設定
+  if(!S.rows.some(r=>r.otaKey===ota.key)){S.rows.push({id:'r'+Date.now()+'a',otaKey:ota.key,label:'企画A',category:'campaign',resvStart:'',resvEnd:'',stayStart:'',stayEnd:'',exclusion:'busy',baseFeeOvr:'',cpnFee:ota.key==='ikkyu'?'0':'3',discType:'pct',discVal:'10',otaDisc:'10',enabled:true},{id:'r'+Date.now()+'b',otaKey:ota.key,label:'自社クーポン',category:'selfCoupon',resvStart:'',resvEnd:'',stayStart:'',stayEnd:'',exclusion:'busySat',baseFeeOvr:'',cpnFee:String(ota.selfCpnFee),discType:'pct',discVal:'10',otaDisc:'',enabled:true},{id:'r'+Date.now()+'c',otaKey:ota.key,label:'割引プラン',category:'discountPlan',resvStart:'',resvEnd:'',stayStart:'',stayEnd:'',exclusion:'busySat',baseFeeOvr:'',cpnFee:'',discType:'pct',discVal:'10',otaDisc:'',enabled:true});simSave();}
+    // ② 条件設定
   html+='<div style="background:#1e2330;border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px;margin-bottom:10px">';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:500">\u2461 \u65bd\u7b56\u6761\u4ef6</div><button onclick="simAddRow()" style="padding:3px 10px;font-size:10px;border-radius:5px;cursor:pointer;border:1px solid var(--ac);background:rgba(79,142,247,0.15);color:var(--ac)">+ \u8ffd\u52a0</button></div>';
   // 一括設定
@@ -1546,7 +1547,7 @@ function simRS(inp,fY,bdg){
   // マトリクス
   html+='<div style="overflow-x:auto"><table style="width:100%;font-size:10px;border-collapse:separate;border-spacing:0 3px">';
   html+='<tr style="color:#7a7f8e"><th style="text-align:left;padding:0 2px;min-width:65px">\u65bd\u7b56</th><th style="min-width:60px">\u30ab\u30c6\u30b4\u30ea</th><th style="min-width:82px">\u4e88\u7d04\u958b\u59cb</th><th style="min-width:82px">\u4e88\u7d04\u7d42\u4e86</th><th style="min-width:82px">\u5bbf\u6cca\u958b\u59cb</th><th style="min-width:82px">\u5bbf\u6cca\u7d42\u4e86</th><th style="min-width:60px">\u9664\u5916</th><th style="min-width:36px">\u30d9\u30fc\u30b9</th><th style="min-width:32px">\u30af\u30dd\u30f3</th><th style="min-width:50px">\u5bbf\u5272\u5f15</th><th style="min-width:32px">OTA\u5272</th><th style="min-width:22px">ON</th><th style="min-width:18px"></th></tr>';
-  S.rows.forEach(row=>{const rc=row.category,op=row.enabled?'1':'0.4',cd=rc==='discountPlan',co=rc!=='campaign';
+  const otaRows=S.rows.filter(r=>r.otaKey===ota.key);otaRows.forEach(row=>{const rc=row.category,op=row.enabled?'1':'0.4',cd=rc==='discountPlan',co=rc!=='campaign';
     html+='<tr style="opacity:'+op+'"><td style="padding:1px 2px"><input value="'+row.label+'" onchange="simUR(\''+row.id+'\',\'label\',this.value)" style="'+inp+'width:100%"></td>';
     html+='<td><select onchange="simUR(\''+row.id+'\',\'category\',this.value)" style="'+inp+'width:100%"><option value="campaign" '+(rc==='campaign'?'selected':'')+'>\u4f01\u753b</option><option value="selfCoupon" '+(rc==='selfCoupon'?'selected':'')+'>\u5bbf\u30af\u30fc\u30dd\u30f3</option><option value="discountPlan" '+(rc==='discountPlan'?'selected':'')+'>\u5272\u5f15</option></select></td>';
     html+='<td><input type="date" value="'+(row.resvStart||'')+'" onchange="simUR(\''+row.id+'\',\'resvStart\',this.value)" style="'+inp+'width:100%"></td>';
@@ -1559,12 +1560,12 @@ function simRS(inp,fY,bdg){
     html+='<td style="display:flex;gap:1px"><select onchange="simUR(\''+row.id+'\',\'discType\',this.value)" style="'+inp+'width:26px;padding:1px"><option value="pct" '+(row.discType==='pct'?'selected':'')+'>%</option><option value="yen" '+(row.discType==='yen'?'selected':'')+'>\u5186</option></select><input type="number" value="'+(row.discVal||'10')+'" onchange="simUR(\''+row.id+'\',\'discVal\',this.value)" style="'+inp+'width:32px;text-align:center"></td>';
     html+='<td><input type="number" value="'+(row.otaDisc||'')+'" '+(co?'disabled':'')+'onchange="simUR(\''+row.id+'\',\'otaDisc\',this.value)" style="'+inp+'width:100%;text-align:center;'+(co?'opacity:0.3':'')+'"></td>';
     html+='<td style="text-align:center"><input type="checkbox" '+(row.enabled?'checked':'')+' onchange="simUR(\''+row.id+'\',\'enabled\',this.checked)"></td>';
-    html+='<td>'+(S.rows.length>1?'<button onclick="simDelRow(\''+row.id+'\')" style="font-size:9px;color:#f75f5f;background:none;border:none;cursor:pointer">\u2715</button>':'')+'</td></tr>';
+    html+='<td>'+(otaRows.length>1?'<button onclick="simDelRow(\''+row.id+'\')" style="font-size:9px;color:#f75f5f;background:none;border:none;cursor:pointer">\u2715</button>':'')+'</td></tr>';
   });
   html+='</table></div></div>';
 
   // ③ 結果
-  const eR=S.rows.filter(r=>r.enabled);
+  const eR=S.rows.filter(r=>r.enabled&&r.otaKey===ota.key);
   if(!eR.length){html+='<div style="background:#1e2330;padding:30px;text-align:center;color:#7a7f8e;border-radius:8px">ON\u306e\u65bd\u7b56\u304c\u3042\u308a\u307e\u305b\u3093</div>';return html;}
   const aYM=new Set();eR.forEach(r=>{Object.keys(simSDBM(r.stayStart||dS,r.stayEnd||dE,r.exclusion)).forEach(ym=>aYM.add(ym));});
   const tY=[...aYM].sort();if(!tY.length){html+='<div style="background:#1e2330;padding:30px;text-align:center;color:#7a7f8e;border-radius:8px">\u5bbf\u6cca\u671f\u9593\u3092\u8a2d\u5b9a</div>';return html;}
