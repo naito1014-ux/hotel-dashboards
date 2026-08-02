@@ -601,12 +601,15 @@ function drawDaily(m){
   </div>`;
 
   const SV=r=>r?r.revenue:0,RM=r=>r?r.rooms:0,RNv=r=>r?r.rn:0;
-  const dpct=(a,b)=>{if(!b)return'<td class="num">-</td>';const p=(a/b-1)*100;
-    return`<td class="num ${p>=0?'up':'dn'}">${(p>=0?'+':'')+p.toFixed(1)}%</td>`;};
+  // 「差」列は率ではなく実数差で表示する（前年に実績が無い日は '-' のまま）
+  const ddiffY=(a,b)=>{if(!b)return'<td class="num">-</td>';const d=a-b;
+    return`<td class="num ${d>=0?'up':'dn'}">${(d>=0?'+':'−')+fmtY(Math.abs(d))}</td>`;};
+  const ddiffC=(a,b,u)=>{if(!b)return'<td class="num">-</td>';const d=a-b;
+    return`<td class="num ${d>=0?'up':'dn'}">${(d>=0?'+':'−')+fmt(Math.abs(d))+u}</td>`;};
 
   let rows,head;
   if(on){
-    head=`<tr><th>日付</th><th>前年同曜日</th><th class="num">室数</th><th class="num">前年</th><th class="num">RN</th><th class="num">売上</th><th class="num">前年売上</th><th class="num">比</th><th class="num">ADR</th><th class="num">人数</th></tr>`;
+    head=`<tr><th>日付</th><th>前年同曜日</th><th class="num">室数</th><th class="num">前年</th><th class="num">差</th><th class="num">RN</th><th class="num">売上</th><th class="num">前年売上</th><th class="num">差</th><th class="num">ADR</th><th class="num">人数</th></tr>`;
     rows=dd.map(d=>{
       const isWe=d.dow==='土'||d.dow==='日',info=pyOf[d.date],p=info.row;
       // 前年月は取込済みなので、行が無い日は「予約ゼロ（売上0）」として比較する
@@ -618,10 +621,11 @@ function drawDaily(m){
         <td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td>
         <td style="color:var(--mu);font-size:11px">${sub}</td>
         <td class="num">${d.rooms}</td><td class="num" style="color:var(--mu)">${cmp?RM(p):'-'}</td>
+        ${cmp?ddiffC(d.rooms,RM(p),'室'):'<td class="num">-</td>'}
         <td class="num">${d.rn}</td>
         <td class="num">${fmtY(d.revenue)}</td>
         <td class="num" style="color:var(--mu)">${cmp?fmtY(pv):'-'}</td>
-        ${cmp?dpct(d.revenue,pv):'<td class="num">-</td>'}
+        ${cmp?ddiffY(d.revenue,pv):'<td class="num">-</td>'}
         <td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td></tr>`;
     }).join('');
   }else{
