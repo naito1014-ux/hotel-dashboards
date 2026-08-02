@@ -561,7 +561,93 @@ function drawYoY(){
   ${tables||'<div class="no-data">該当データがありません</div>'}`;
 }
 
-function drawDaily(m){const el=document.getElementById('tab-daily');const dd=DATA.daily[m]||[];if(!dd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}let rows=dd.map(d=>{const isWe=d.dow==='土'||d.dow==='日';return`<tr style="${isWe?'background:rgba(139,105,20,.04)':''}"><td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${d.rooms}</td><td class="num">${d.rn}</td><td class="num">${fmtY(d.revenue)}</td><td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td><td class="num">${fmtY(d.per_person)}</td></tr>`;}).join('');el.innerHTML=`<div class="card"><h3>日別売上（${m}）</h3><div class="chart-wrap tall"><canvas id="daily-chart"></canvas></div></div><div class="card"><h3>日別明細</h3><div class="scroll-table"><table><tr><th>日付</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">人泊単価</th></tr>${rows}</table></div></div>`;makeChart('daily-chart',{type:'bar',data:{labels:dd.map(d=>d.date.slice(5)+' '+d.dow),datasets:[{type:'bar',label:'売上',data:dd.map(d=>d.revenue),backgroundColor:dd.map(d=>(d.dow==='土'||d.dow==='日')?'rgba(176,120,40,.5)':'rgba(139,105,20,.55)'),borderRadius:3,yAxisID:'y'},{type:'line',label:'ADR',data:dd.map(d=>d.adr),borderColor:'#d4870a',backgroundColor:'transparent',pointRadius:2,tension:.3,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{color:'#9a8e7e',font:{size:10}}},y:{grid:{color:'rgba(44,36,24,.08)'},ticks:{color:'#9a8e7e',callback:v=>'\u00a5'+(v/10000).toFixed(0)+'万'}},y1:{position:'right',grid:{display:false},ticks:{color:'#d4870a',callback:v=>'\u00a5'+fmt(v)}}},plugins:{legend:{labels:{color:'#2c2418'}}}}});}
+/* ========== DAILY: 前年同曜日合わせ比較 ==========
+   前年の「同月・同回数目の同曜日」と比較する（今年の第2土曜 → 前年の第2土曜）。
+   かららこの DATA.daily は月キー辞書で、予約ゼロ日は行そのものが存在しない。
+   前年月が取込済み（hasPy）なら「行が無い＝予約ゼロ」とみなし売上0で比較する。 */
+let dailyPY=true;
+function toggleDailyPY(){dailyPY=!dailyPY;drawDaily(tabMonths.daily);}
+// 前年同月の「k回目の同曜日」（無ければ null）
+function pyNthWeekday(dateStr){
+  const y=+dateStr.slice(0,4),mo=+dateStr.slice(5,7),da=+dateStr.slice(8,10);
+  const g=new Date(y,mo-1,da).getDay();
+  let k=0;for(let i=1;i<=da;i++)if(new Date(y,mo-1,i).getDay()===g)k++;
+  const dimPrev=new Date(y-1,mo,0).getDate();
+  let c=0;
+  for(let i=1;i<=dimPrev;i++){
+    if(new Date(y-1,mo-1,i).getDay()===g){c++;if(c===k)return (y-1)+'-'+String(mo).padStart(2,'0')+'-'+String(i).padStart(2,'0');}
+  }
+  return null;
+}
+function drawDaily(m){
+  const el=document.getElementById('tab-daily');
+  const dd=DATA.daily[m]||[];
+  if(!dd.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}
+  const showPyMonth=hasPy(m),pm=pyMonth(m);
+  // 前年月の日次売上マップ（行が無い日＝予約ゼロ）
+  const pmap={};if(showPyMonth)(DATA.daily[pm]||[]).forEach(d=>{pmap[d.date]=d;});
+  const pyOf={};let noCounter=0;
+  dd.forEach(d=>{
+    const pd=showPyMonth?pyNthWeekday(d.date):null;
+    if(showPyMonth&&!pd)noCounter++;
+    pyOf[d.date]={pd,row:pd?(pmap[pd]||null):null};
+  });
+  const on=dailyPY&&showPyMonth;
+  const toggleUI=`<div class="filter-row" style="margin-bottom:12px">
+    <button class="toggle-btn ${dailyPY?'active':''}" onclick="toggleDailyPY()">前年曜日合わせ</button>
+    ${dailyPY?(showPyMonth
+      ?`<span style="font-size:10.5px;color:var(--mu);margin-left:4px">前年 ${pm} と同曜日で比較${noCounter?`（前年に対応日なし ${noCounter}日）`:''}</span>`
+      :`<span style="font-size:10.5px;color:var(--mu);margin-left:4px">この月は前年データがありません</span>`):''}
+  </div>`;
+
+  const SV=r=>r?r.revenue:0,RM=r=>r?r.rooms:0,RNv=r=>r?r.rn:0;
+  const dpct=(a,b)=>{if(!b)return'<td class="num">-</td>';const p=(a/b-1)*100;
+    return`<td class="num ${p>=0?'up':'dn'}">${(p>=0?'+':'')+p.toFixed(1)}%</td>`;};
+
+  let rows,head;
+  if(on){
+    head=`<tr><th>日付</th><th>前年同曜日</th><th class="num">室数</th><th class="num">前年</th><th class="num">RN</th><th class="num">売上</th><th class="num">前年売上</th><th class="num">比</th><th class="num">ADR</th><th class="num">人数</th></tr>`;
+    rows=dd.map(d=>{
+      const isWe=d.dow==='土'||d.dow==='日',info=pyOf[d.date],p=info.row;
+      // 前年月は取込済みなので、行が無い日は「予約ゼロ（売上0）」として比較する
+      const cmp=info.pd!=null;
+      const pv=SV(p);
+      const sub=info.pd?`${info.pd.slice(5)}${p?'':' <span style="color:var(--mu)">(予約なし)</span>'}`
+                       :'<span style="color:var(--mu)">対応日なし</span>';
+      return`<tr style="${isWe?'background:rgba(139,105,20,.04)':''}${cmp?'':'opacity:.55'}">
+        <td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td>
+        <td style="color:var(--mu);font-size:11px">${sub}</td>
+        <td class="num">${d.rooms}</td><td class="num" style="color:var(--mu)">${cmp?RM(p):'-'}</td>
+        <td class="num">${d.rn}</td>
+        <td class="num">${fmtY(d.revenue)}</td>
+        <td class="num" style="color:var(--mu)">${cmp?fmtY(pv):'-'}</td>
+        ${cmp?dpct(d.revenue,pv):'<td class="num">-</td>'}
+        <td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td></tr>`;
+    }).join('');
+  }else{
+    head=`<tr><th>日付</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">人泊単価</th></tr>`;
+    rows=dd.map(d=>{const isWe=d.dow==='土'||d.dow==='日';
+      return`<tr style="${isWe?'background:rgba(139,105,20,.04)':''}"><td>${d.date} <span class="pill ${isWe?'pill-orange':'pill-blue'}">${d.dow}</span></td><td class="num">${d.rooms}</td><td class="num">${d.rn}</td><td class="num">${fmtY(d.revenue)}</td><td class="num">${fmtY(d.adr)}</td><td class="num">${d.persons}</td><td class="num">${fmtY(d.per_person)}</td></tr>`;}).join('');
+  }
+
+  el.innerHTML=toggleUI+`<div class="card"><h3>日別売上（${m}）${on?`<span class="badge">前年 ${pm} 同曜日比較</span>`:''}</h3><div class="chart-wrap tall"><canvas id="daily-chart"></canvas></div></div>`
+    +`<div class="card"><h3>日別明細</h3><div class="scroll-table" style="overflow-x:auto"><table${on?' style="min-width:900px"':''}>${head}${rows}</table></div>`
+    +(on?`<div style="font-size:10px;color:var(--mu);margin-top:8px">※ 比較先は「前年同月の同回数目の同曜日」。前年に予約が無かった日は行が存在しないため売上0円として比較しています。前年に同回数目の同曜日が存在しない日（第5週など）は比較対象外です。</div>`:'')
+    +`</div>`;
+
+  const ds=on
+    ?[{type:'bar',label:'前年同曜日',data:dd.map(d=>SV(pyOf[d.date].row)),backgroundColor:'rgba(44,36,24,.14)',borderRadius:3,yAxisID:'y'},
+      {type:'bar',label:'今年',data:dd.map(d=>d.revenue),backgroundColor:dd.map(d=>{const i=pyOf[d.date];
+        if(!i.pd)return'rgba(44,36,24,.30)';                              // 比較不可
+        return d.revenue>=SV(i.row)?'rgba(45,122,45,.62)':'rgba(192,48,48,.62)';}),borderRadius:3,yAxisID:'y'}]
+    :[{type:'bar',label:'売上',data:dd.map(d=>d.revenue),backgroundColor:dd.map(d=>(d.dow==='土'||d.dow==='日')?'rgba(176,120,40,.5)':'rgba(139,105,20,.55)'),borderRadius:3,yAxisID:'y'},
+      {type:'line',label:'ADR',data:dd.map(d=>d.adr),borderColor:'#d4870a',backgroundColor:'transparent',pointRadius:2,tension:.3,yAxisID:'y1'}];
+  const scales=on
+    ?{x:{ticks:{color:'#9a8e7e',font:{size:10}}},y:{grid:{color:'rgba(44,36,24,.08)'},ticks:{color:'#9a8e7e',callback:v=>'¥'+(v/10000).toFixed(0)+'万'}}}
+    :{x:{ticks:{color:'#9a8e7e',font:{size:10}}},y:{grid:{color:'rgba(44,36,24,.08)'},ticks:{color:'#9a8e7e',callback:v=>'¥'+(v/10000).toFixed(0)+'万'}},y1:{position:'right',grid:{display:false},ticks:{color:'#d4870a',callback:v=>'¥'+fmt(v)}}};
+  makeChart('daily-chart',{data:{labels:dd.map(d=>d.date.slice(5)+' '+d.dow),datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales,plugins:{legend:{labels:{color:'#2c2418'}}}}});
+}
 
 function drawRoom(m){const el=document.getElementById('tab-room');const rd=DATA.room[m]||[];
   const prevM=(parseInt(m.slice(0,4))-1)+m.slice(4);const prd=DATA.room[prevM]||[];
