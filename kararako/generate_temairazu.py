@@ -147,6 +147,32 @@ tr:hover td{{background:rgba(139,105,20,0.04);}}
 .toggle-btn{{background:var(--sf);border:1px solid var(--bd);color:var(--mu);padding:3px 10px;border-radius:6px;font-size:10.5px;cursor:pointer;font-family:inherit;}}
 .toggle-btn.active{{background:rgba(139,105,20,.12);color:#8b6914;border-color:#8b6914;}}
 .no-data{{text-align:center;padding:40px;color:var(--mu);font-size:12px;}}
+/* ── 月次レポート ── */
+.rp-line{{font-size:12.5px;margin-bottom:6px;}}
+.rp-line:last-child{{margin-bottom:0;}}
+.rp-sub{{font-size:11px;color:var(--mu);margin:10px 0 6px;font-weight:500;}}
+.rp-narr{{background:rgba(139,105,20,.06);border-left:3px solid var(--ac);padding:8px 10px;border-radius:0 6px 6px 0;font-size:11.5px;margin-top:10px;}}
+.rp-ok{{color:var(--mu);font-size:11.5px;padding:6px 0;}}
+.rp-factor{{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;margin-bottom:6px;font-size:11.5px;}}
+.rp-factor .lbl{{color:var(--mu);}}
+.rp-factor .amt{{font-family:'DM Mono',monospace;font-weight:500;}}
+.rp-metrics{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;}}
+.rp-cols{{display:grid;grid-template-columns:1fr 1fr;gap:14px;}}
+@media(max-width:900px){{.rp-cols,.rp-metrics{{grid-template-columns:1fr;}}}}
+.rp-chrow{{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11.5px;}}
+.rp-chrow .amt{{font-family:'DM Mono',monospace;}}
+.rp-day{{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11.5px;font-family:'DM Mono',monospace;}}
+.rp-day .wd{{color:var(--mu);margin-left:4px;}}
+.rp-alert{{background:rgba(192,48,48,.07);border-left:3px solid var(--dn);padding:8px 10px;border-radius:0 6px 6px 0;font-size:11.5px;margin-bottom:6px;}}
+.rp-alert.lv2{{background:rgba(176,120,40,.08);border-left-color:var(--wn);}}
+.rp-alert.lv1{{background:rgba(44,36,24,.04);border-left-color:var(--mu);}}
+.rp-lvtag{{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;margin-right:6px;}}
+.rp-lv3{{background:var(--dn);color:#faf8f4;}}
+.rp-lv2{{background:var(--wn);color:#faf8f4;}}
+.rp-lv1{{background:rgba(44,36,24,.12);color:var(--mu);}}
+.rp-issue{{padding:7px 0 7px 20px;border-bottom:1px solid var(--bd);font-size:11.5px;position:relative;}}
+.rp-issue:before{{content:'\\25B8';position:absolute;left:4px;color:var(--ac);}}
+.rp-note{{font-size:10px;color:var(--mu);margin-top:8px;}}
 .footer{{text-align:center;padding:20px;color:var(--mu);font-size:10px;border-top:1px solid var(--bd);margin-top:20px;}}
 @media print{{.header,.nav,.month-bar{{position:static;}}.section{{display:block!important;page-break-before:always;}}body{{background:#fff;}}}}
 </style>
@@ -161,6 +187,7 @@ def html_body(data):
     months = data["months"]
 
     tab_defs = [
+        ("report", "月次レポート"),
         ("monthly", "月別実績"), ("yoy", "前年同日対比"), ("daily", "Daily"),
         ("room", "Room"), ("room_monthly", "Room月次"), ("plan", "Plan"),
         ("cancel", "キャンセル"), ("pickup", "Pickup"), ("leadtime", "Leadtime"),
@@ -235,7 +262,7 @@ function chColor(c){return CH_COLORS[c]||'#64748b';}
 function fmt(n){if(n==null)return'-';return Number(n).toLocaleString();}
 function fmtY(n){return'\u00a5'+fmt(n);}
 function pct(a,b){return b?(a/b*100).toFixed(1):'-';}
-const monthTabs=['monthly','daily','room','plan','cancel','pref','travel'];
+const monthTabs=['report','monthly','daily','room','plan','cancel','pref','travel'];
 const noMonthBar=['yoy','room_monthly','pref_monthly'];
 let tabMonths={};monthTabs.forEach(t=>{tabMonths[t]=DATA.default_month;});
 let curTab='monthly';
@@ -245,7 +272,7 @@ function makeChart(id,cfg){destroyChart(id);const c=document.getElementById(id);
 function showTab(name,el){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');if(el)el.classList.add('active');curTab=name;document.getElementById('monthBar').style.display=noMonthBar.includes(name)?'none':'';const tm=tabMonths[name]||DATA.default_month;document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===tm));drawTab(name);}
 function switchAllTabs(m){monthTabs.forEach(t=>{tabMonths[t]=m;});document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===m));const sel=document.getElementById('global-month-select');if(sel)sel.value=m;drawTab(curTab);}
 function printAll(){document.querySelectorAll('.section').forEach(s=>s.classList.add('active'));setTimeout(()=>{window.print();},300);}
-function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;}}
+function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'report':drawReport(m);break;case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;}}
 
 let rangeMode=false;let rangeFrom='';let rangeTo='';
 
@@ -683,7 +710,264 @@ function drawPrefMonthly(){const el=document.getElementById('tab-pref_monthly');
 
 function drawTravel(m){const el=document.getElementById('tab-travel');const td=DATA.travel[m]||[];if(!td.length){el.innerHTML='<div class="no-data">この月のデータはありません</div>';return;}const colors=['#3366aa','#d4870a','#22c55e','#ef4444','#a78bfa','#ec4899','#06b6d4'];el.innerHTML=`<div class="grid-2"><div class="card"><h3>旅行動態別 件数</h3><div class="chart-wrap"><canvas id="travel-cnt"></canvas></div></div><div class="card"><h3>旅行動態別 売上</h3><div class="chart-wrap"><canvas id="travel-rev"></canvas></div></div></div><div class="card"><h3>旅行動態 明細</h3><div class="scroll-table"><table><tr><th>旅行動態</th><th class="num">件数</th><th class="num">売上</th><th class="num">平均単価</th><th class="num">人数</th><th class="num">構成比</th></tr>${td.map(t=>{const total=td.reduce((a,x)=>a+x.count,0);return`<tr><td>${t.name}</td><td class="num">${t.count}</td><td class="num">${fmtY(t.revenue)}</td><td class="num">${fmtY(t.count?Math.round(t.revenue/t.count):0)}</td><td class="num">${t.persons}</td><td class="num">${pct(t.count,total)}%</td></tr>`;}).join('')}</table></div></div><p style="color:var(--mu);font-size:10px;margin-top:8px">※ 旅行動態は大人人数・子供人数・男女人数から推定しています</p>`;makeChart('travel-cnt',{type:'doughnut',data:{labels:td.map(t=>t.name),datasets:[{data:td.map(t=>t.count),backgroundColor:colors,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#2c2418'}}}}});makeChart('travel-rev',{type:'doughnut',data:{labels:td.map(t=>t.name),datasets:[{data:td.map(t=>t.revenue),backgroundColor:colors,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#2c2418'}},tooltip:{callbacks:{label:ctx=>ctx.label+': \u00a5'+fmt(ctx.raw)}}}}});}
 
-showTab('monthly',document.querySelector('.nav-tab'));
+/* ========== 月次レポート（ルールベース自動生成） ==========
+   TL系 drawReport の移植。かららこの DATA はフラット構造・英語キーのため読み替える。
+   - 全体値   : TL total/total_py → DATA.monthly[月] / DATA.monthly[前年同月]
+   - ADR      : md.adr（＝売上÷RN）。月別実績タブと同一定義
+   - 同伴係数 : DATA に無いため persons/rooms で導出
+   - チャネル : DATA に実測値が無いため aggChannels()（日次室数シェア按分）を当年・前年に同一適用
+   ④⑤は TL系から変更（④＝前年同曜日比での前年割れ額、⑤＝稼働率の前年割れ連続性3段階）
+*/
+const RP_WD=['日','月','火','水','木','金','土'];
+const RP_OCC={};                      // 月→{室タイプ:稼働率} のキャッシュ
+function rpYoY(c,p){return p?(c/p-1)*100:null;}
+function rpWord(p){return p==null?'前年データなし':(p>5?'増加':(p<-5?'減少':'横ばい'));}
+function rpFmtP(p){return p==null?'—':(p>=0?'+':'')+p.toFixed(1)+'%';}
+function rpCls(p){return p==null?'':(p>=0?'up':'dn');}
+function rpChip(p){return p==null?'<span style="color:var(--mu)">前年データなし</span>'
+  :`<span class="${rpCls(p)}">${rpFmtP(p)}（${rpWord(p)}）</span>`;}
+function rpSgnY(v){return (v>=0?'+':'−')+fmtY(Math.abs(v));}
+function rpPad(n){return String(n).padStart(2,'0');}
+function rpDow(ds){const p=ds.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]).getDay();}
+function rpPrevMonth(ym){const y=Number(ym.slice(0,4)),mo=Number(ym.slice(5,7));const d=new Date(y,mo-2,1);
+  return d.getFullYear()+'-'+rpPad(d.getMonth()+1);}
+// データ最終日（これ以降の日付は「未到来／未取込」として集計対象外）
+function rpMaxDate(){if(window._rpMaxD)return window._rpMaxD;let mx='';
+  Object.keys(DATA.daily).forEach(k=>DATA.daily[k].forEach(d=>{if(d.date>mx)mx=d.date;}));
+  window._rpMaxD=mx;return mx;}
+// 室タイプ別 稼働率（drawRoom と同一ロジック：rn ÷（物理室数 × 当月日数））
+function rpOccMap(ym){
+  if(RP_OCC[ym])return RP_OCC[ym];
+  const o={};(DATA.room[ym]||[]).forEach(r=>{
+    const pr=physicalRooms(r.name),dm=daysInMonth(ym);if(pr&&dm)o[r.name]=r.rn/(pr*dm)*100;});
+  RP_OCC[ym]=o;return o;}
+// 月 ym の「k回目の曜日g」の日付（無ければ null）
+function rpNthWd(ym,g,k){const dim=daysInMonth(ym);let c=0;
+  for(let i=1;i<=dim;i++){const ds=ym+'-'+rpPad(i);if(rpDow(ds)===g){c++;if(c===k)return ds;}}
+  return null;}
+// 日次売上マップ（予約ゼロ日は行が無いので 0 とみなす）
+function rpDayRev(ym){const o={};(DATA.daily[ym]||[]).forEach(d=>{o[d.date]=d.revenue;});return o;}
+// 室タイプの ym 月における前年割れ判定：true=前年割れ / false=前年以上 / null=判定不能
+function rpUnderPy(ym,room){
+  if(!hasPy(ym))return null;
+  const c=rpOccMap(ym)[room],p=rpOccMap(pyMonth(ym))[room];
+  if(c==null||p==null)return null;
+  return c<p;}
+
+function drawReport(m){
+  const el=document.getElementById('tab-report');if(!el)return;
+  const md=DATA.monthly[m];
+  if(!md){el.innerHTML='<div class="no-data">この月のデータがありません</div>';return;}
+  const showPy=hasPy(m),pm=pyMonth(m),py=showPy?DATA.monthly[pm]:null;
+  const moNum=parseInt(m.slice(5,7),10);
+
+  const acc  =md.rooms?md.persons/md.rooms:0;              // 同伴係数＝人数÷室数（導出）
+  const accPy=(py&&py.rooms)?py.persons/py.rooms:0;
+  const salesPct=showPy?rpYoY(md.revenue,py.revenue):null;
+  const roomsPct=showPy?rpYoY(md.rooms,py.rooms):null;
+  const rnPct   =showPy?rpYoY(md.rn,py.rn):null;
+  const adrPct  =showPy?rpYoY(md.adr,py.adr):null;
+  const paxPct  =showPy?rpYoY(md.per_person,py.per_person):null;
+  const accPct  =showPy?rpYoY(acc,accPy):null;
+
+  // 売上分解：ADR＝売上÷RN なので数量側は RN を使う（rnEffect+priceEffect＝売上差 が成立）
+  const rnEffect   =showPy?(md.rn-py.rn)*py.adr:0;
+  const priceEffect=showPy?(md.adr-py.adr)*md.rn:0;
+  const driverIsPrice=Math.abs(priceEffect)>=Math.abs(rnEffect);
+  const driverPct=driverIsPrice?adrPct:rnPct;
+
+  const pyTag=showPy?`<span class="badge">前年：${pm}</span>`
+    :`<span style="font-size:10.5px;color:var(--mu);margin-left:8px">前年データなし</span>`;
+
+  // ══════ ① エグゼクティブサマリー ══════
+  let l1,l2,l3;
+  if(!showPy){
+    l1=`<b>${moNum}月</b>は前年同月のデータがないため、前年比較はスキップします。`;
+    l2=`売上 <b>${fmtY(md.revenue)}</b>／室数 <b>${fmt(md.rooms)}室</b>／RN <b>${fmt(md.rn)}</b>／ADR <b>${fmtY(md.adr)}</b>。`;
+    l3=`実績値のみを表示しています。`;
+  }else{
+    l1=`<b>${moNum}月</b>は売上前年比 <span class="${rpCls(salesPct)}">${rpFmtP(salesPct)}</span>。${rpWord(salesPct)}基調です。`;
+    const dName=driverIsPrice?'単価(ADR)':'室泊数(RN)';
+    const dDir =(driverPct!=null&&driverPct>=0)?'上昇':'低下';
+    const dRole=(salesPct!=null&&salesPct>=0)?'牽引':'主因';
+    l2=`${dName}の${dDir}（<span class="${rpCls(driverPct)}">${rpFmtP(driverPct)}</span>）が${dRole}。`;
+    const oPct=driverIsPrice?rnPct:adrPct,oNm=driverIsPrice?'室泊数(RN)':'ADR';
+    l3=`${oNm}は${rpWord(oPct)}（<span class="${rpCls(oPct)}">${rpFmtP(oPct)}</span>）。`
+      +`室数 <span class="${rpCls(roomsPct)}">${rpFmtP(roomsPct)}</span>／客単価 <span class="${rpCls(paxPct)}">${rpFmtP(paxPct)}</span>。`;
+  }
+  let html=`<div class="card"><h3>エグゼクティブサマリー ｜ ${m} ${pyTag}</h3>
+    <div class="rp-line">${l1}</div><div class="rp-line">${l2}</div><div class="rp-line">${l3}</div></div>`;
+
+  // ══════ ② 売上分解 ══════
+  html+=`<div class="card"><h3>売上分解</h3>`;
+  if(!showPy){
+    html+=`<div class="rp-ok">前年データがないため、売上分解はスキップします。</div>`;
+  }else{
+    const totalDelta=md.revenue-py.revenue;
+    html+=`<div class="rp-sub">売上変化 ${rpSgnY(totalDelta)}（前年比 ${rpFmtP(salesPct)}）の内訳</div>
+    <div class="rp-factor"><span class="lbl">室泊数(RN)要因（単価一定でRNが動いた分）</span><span class="amt ${rnEffect>=0?'up':'dn'}">${rpSgnY(rnEffect)}</span></div>
+    <div class="rp-factor"><span class="lbl">単価(ADR)要因（RN一定で単価が動いた分）</span><span class="amt ${priceEffect>=0?'up':'dn'}">${rpSgnY(priceEffect)}</span></div>
+    <div class="rp-metrics">
+      <div class="kpi orange"><div class="label">ADR（売上÷RN）</div><div class="value">${fmt(md.adr)}<span class="unit">円</span></div><div class="py">前年 ${fmtY(py.adr)}<span class="d">${rpChip(adrPct)}</span></div></div>
+      <div class="kpi green"><div class="label">客単価（売上÷人数）</div><div class="value">${fmt(md.per_person)}<span class="unit">円</span></div><div class="py">前年 ${fmtY(py.per_person)}<span class="d">${rpChip(paxPct)}</span></div></div>
+      <div class="kpi blue"><div class="label">同伴率（人数÷室数）</div><div class="value">${acc.toFixed(2)}</div><div class="py">前年 ${accPy.toFixed(2)}<span class="d">${rpChip(accPct)}</span></div></div>
+    </div>
+    <div class="rp-narr">売上変化は主に <b>${driverIsPrice?'単価（ADR）要因':'室泊数（RN）要因'}</b> で動いています（${driverIsPrice?'単価':'RN'}要因 ${rpSgnY(driverIsPrice?priceEffect:rnEffect)} ＞ ${driverIsPrice?'RN':'単価'}要因 ${rpSgnY(driverIsPrice?rnEffect:priceEffect)}）。${
+      driverIsPrice
+        ?(adrPct>=0?'価格・プラン施策が単価を押し上げています。':'ADR低下が売上を圧迫しています。価格戦略の見直しが論点です。')
+        :(rnPct>=0?'稼働が室泊数を伸ばしています。':'室泊数の減少が売上の重しになっています。稼働向上策が論点です。')
+    }</div>
+    <div class="rp-note">※ ADR は「売上÷RN」で月別実績タブと同一定義のため、数量側は室数ではなく RN で分解しています（両要因の合計が売上差と一致）。</div>`;
+  }
+  html+=`</div>`;
+
+  // ══════ ③ チャネル別勝敗 ══════
+  const cm=aggChannels([m]),cpy=showPy?aggChannels([pm]):{};
+  const allCh=[...new Set([...Object.keys(cm),...Object.keys(cpy)])];
+  const chRes=allCh.map(ch=>{
+    const c=(cm[ch]&&cm[ch].revenue)||0,p=(cpy[ch]&&cpy[ch].revenue)||0;
+    return{ch,c,p,pct:p?(c/p-1)*100:null,delta:c-p};
+  });
+  const winners=chRes.filter(r=>(r.pct!=null&&r.pct>5)||(r.pct==null&&r.c>0))
+                     .sort((a,b)=>(b.pct==null?1e9:b.pct)-(a.pct==null?1e9:a.pct));
+  const losers =chRes.filter(r=>r.pct!=null&&r.pct<-5).sort((a,b)=>a.pct-b.pct);
+  const chRow=r=>{
+    const isNew=r.pct==null,lost=r.p>0&&r.c===0;
+    const label=isNew?'新規':(lost?'消失':rpFmtP(r.pct));
+    const cl=(isNew||r.pct>=0)?'up':'dn';
+    return`<div class="rp-chrow"><span>${chDot(r.ch)}${r.ch}</span><span class="amt ${cl}">${label} <span style="color:var(--mu)">(${rpSgnY(r.delta)})</span></span></div>`;
+  };
+  html+=`<div class="card"><h3>チャネル別 勝敗（前年比 ±5%超のみ）</h3>`;
+  if(!showPy){
+    html+=`<div class="rp-ok">前年データがないため、チャネル別勝敗はスキップします。</div>`;
+  }else if(!winners.length&&!losers.length){
+    html+=`<div class="rp-ok">前年比 ±5%超で変動したチャネルはありません（全チャネル横ばい）。</div>`;
+  }else{
+    html+=`<div class="rp-cols">
+      <div><div class="rp-sub" style="color:var(--up)">▲ 好調チャネル</div>${winners.length?winners.map(chRow).join(''):'<div class="rp-ok">該当なし</div>'}</div>
+      <div><div class="rp-sub" style="color:var(--dn)">▼ 不振チャネル</div>${losers.length?losers.map(chRow).join(''):'<div class="rp-ok">該当なし</div>'}</div>
+    </div>`;
+  }
+  html+=`<div class="rp-note">※ チャネル別売上は実測値ではなく、Daily の日次室数シェアで按分した推計値です（当年・前年とも同一方式）。</div></div>`;
+
+  // ══════ ④ 日別の前年割れ検出（前年同月・同回数目の同曜日と売上比較） ══════
+  const RP_TOPN=5;
+  let shortfalls=[],noCounter=0,pyZero=0,curZero=0,cmpDays=0;
+  html+=`<div class="card"><h3>日別の前年割れ（前年同曜日比・売上）</h3>`;
+  if(!showPy){
+    html+=`<div class="rp-ok">前年同月のデータがないため、日別の前年割れ検出はスキップします。</div>`;
+  }else{
+    const dim=daysInMonth(m),maxD=rpMaxDate();
+    const curRev=rpDayRev(m),pyRev=rpDayRev(pm);
+    const wdCount={};
+    for(let i=1;i<=dim;i++){
+      const ds=m+'-'+rpPad(i);
+      if(ds>maxD)continue;                       // 未到来／未取込
+      const g=rpDow(ds);
+      wdCount[g]=(wdCount[g]||0)+1;              // 当月で g 曜日が何回目か
+      const pds=rpNthWd(pm,g,wdCount[g]);        // 前年の同回数目の同曜日
+      if(!pds){noCounter++;continue;}            // 前年に対応日が無い（第5週など）
+      const c=curRev[ds]||0,p=pyRev[pds]||0;
+      if(!(ds in curRev))curZero++;
+      if(!(pds in pyRev))pyZero++;
+      cmpDays++;
+      if(c-p<0)shortfalls.push({ds,pds,g,c,p,diff:c-p});
+    }
+    shortfalls.sort((a,b)=>a.diff-b.diff);
+    if(!shortfalls.length){
+      html+=`<div class="rp-ok">前年同曜日を下回った日はありません（比較対象 ${cmpDays}日）。</div>`;
+    }else{
+      const top=shortfalls.slice(0,RP_TOPN);
+      const totalShort=shortfalls.reduce((a,x)=>a+x.diff,0);
+      html+=`<div class="rp-sub">前年割れ ${shortfalls.length}日／合計 <span class="dn">${rpSgnY(totalShort)}</span>（比較対象 ${cmpDays}日）</div>
+      <div class="scroll-table"><table>
+        <tr><th>当年</th><th>前年対応日</th><th class="num">当年売上</th><th class="num">前年売上</th><th class="num">差額</th></tr>
+        ${top.map(x=>{const iw=(x.g===0||x.g===6);
+          return`<tr><td style="white-space:nowrap">${x.ds.slice(5)}<span style="${iw?'color:var(--wn)':'color:var(--mu)'};margin-left:4px">(${RP_WD[x.g]})</span></td>`
+          +`<td style="white-space:nowrap;color:var(--mu)">${x.pds.slice(5)}(${RP_WD[x.g]})</td>`
+          +`<td class="num">${fmtY(x.c)}</td><td class="num" style="color:var(--mu)">${fmtY(x.p)}</td>`
+          +`<td class="num dn">${rpSgnY(x.diff)}</td></tr>`;}).join('')}
+      </table></div>`;
+      if(shortfalls.length>RP_TOPN)html+=`<div class="rp-note">※ 前年割れ${shortfalls.length}日のうち、差額の大きい上位${RP_TOPN}日を表示しています。</div>`;
+    }
+    html+=`<div class="rp-note">※ 比較先は「前年同月の同回数目の同曜日」（例：今年の第2土曜 → 前年の第2土曜）。`
+      +`予約ゼロ日は CSV に行が無いため <b>売上0円として扱います</b>（当年${curZero}日／前年${pyZero}日）。`
+      +`前年に売上が無い日は差額が必ず0以上になるため、定義上ここには挙がりません。`
+      +`前年に対応する回数目の曜日が存在しない日（第5週など）は比較対象外としました（${noCounter}日）。`
+      +`データ最終日 ${rpMaxDate()} より後は未到来として除外しています。</div>`;
+  }
+  html+=`</div>`;
+
+  // ══════ ⑤ 部屋タイプ診断（稼働率の前年割れ・連続性で3段階） ══════
+  const m1=rpPrevMonth(m),m0=rpPrevMonth(m1);
+  const alerts=[];let undecided=0;
+  html+=`<div class="card"><h3>部屋タイプ診断（稼働率の前年割れ・連続性で3段階）</h3>`;
+  if(!showPy){
+    html+=`<div class="rp-ok">前年同月のデータがないため、部屋タイプ診断はスキップします。</div>`;
+  }else{
+    const occC=rpOccMap(m),occP=rpOccMap(pm);
+    (DATA.room[m]||[]).forEach(r=>{
+      const c=occC[r.name],p=occP[r.name];
+      if(c==null||p==null){undecided++;return;}   // 前年に同名が無い→判定不能（drawRoomMonthly の p&& 方式）
+      if(!(c<p))return;                            // 前年割れでない
+      // 連続性：当月→前月→前々月 と遡り、判定不能が出た時点で打ち切る
+      let streak=1;
+      for(const x of [m1,m0]){const u=rpUnderPy(x,r.name);if(u===true)streak++;else break;}
+      alerts.push({room:r.name,cur:c,py:p,streak,
+        prev:[m1,m0].map(x=>({ym:x,cur:rpOccMap(x)[r.name],py:hasPy(x)?rpOccMap(pyMonth(x))[r.name]:undefined}))});
+    });
+    alerts.sort((a,b)=>(b.streak-a.streak)||((a.cur-a.py)-(b.cur-b.py)));
+    if(!alerts.length){
+      html+=`<div class="rp-ok">稼働率が前年を下回った部屋タイプはありません。</div>`;
+    }else{
+      html+=alerts.map(a=>{
+        const lv=Math.min(a.streak,3);
+        const tag=lv===3?'<span class="rp-lvtag rp-lv3">最強 3ヶ月連続</span>'
+                :lv===2?'<span class="rp-lvtag rp-lv2">強 2ヶ月連続</span>'
+                       :'<span class="rp-lvtag rp-lv1">当月のみ</span>';
+        const hist=a.prev.filter(x=>x.cur!=null&&x.py!=null)
+          .map(x=>`${x.ym.slice(5)}月 ${x.cur.toFixed(1)}%/前年${x.py.toFixed(1)}%`).join('、');
+        return`<div class="rp-alert ${lv===3?'':lv===2?'lv2':'lv1'}">${tag}<b>${a.room}</b> — 当月稼働率 <b class="dn">${a.cur.toFixed(1)}%</b> が前年同月 ${a.py.toFixed(1)}% を <b>${(a.py-a.cur).toFixed(1)}pt</b> 下回っています。${hist?`<span style="color:var(--mu)">（${hist}）</span>`:''}</div>`;
+      }).join('');
+    }
+    html+=`<div class="rp-note">※ 稼働率は Room タブと同一ロジック（RN ÷ 物理室数 × 当月日数）。`
+      +`前年に同名の室タイプが無い月は<b>判定不能として連続カウントを打ち切ります</b>（前年割れが続いたとは見なしません）。`
+      +`当月の判定不能は ${undecided}タイプでした。</div></div>`;
+  }
+
+  // ══════ ⑥ 論点リスト ══════
+  const issues=[];
+  const lv3=alerts.filter(a=>a.streak>=3),lv2=alerts.filter(a=>a.streak===2);
+  // 最強アラート（3ヶ月連続前年割れ）を最優先
+  lv3.slice(0,3).forEach(a=>issues.push(`<b>${a.room}</b> が3ヶ月連続で稼働率前年割れ（当月 ${a.cur.toFixed(1)}% ／ 前年 ${a.py.toFixed(1)}%）。最優先で販促・料金の見直しを。`));
+  if(showPy){
+    if(salesPct!=null&&salesPct<-5)issues.push(`売上が前年比 ${rpFmtP(salesPct)} と減少。要因の深掘りが必要。`);
+    if(adrPct  !=null&&adrPct  <-5)issues.push(`ADRが前年比 ${rpFmtP(adrPct)} と低下。価格・プラン設計の見直しを検討。`);
+    if(roomsPct!=null&&roomsPct<-5)issues.push(`室数が前年比 ${rpFmtP(roomsPct)} と減少。集客チャネルの強化が必要。`);
+    losers.slice(0,2).forEach(r=>issues.push((r.p>0&&r.c===0)
+      ?`${r.ch} が消失（前年 ${fmtY(r.p)} → 当年ゼロ）。取扱い停止か送客減かを確認。`
+      :`${r.ch} が前年比 ${rpFmtP(r.pct)} と不振。${r.ch}の販売状況を確認。`));
+    winners.filter(r=>r.pct==null).slice(0,1).forEach(r=>issues.push(`${r.ch} が新規稼働。伸長要因を横展開できないか確認。`));
+  }
+  if(shortfalls.length){
+    const w=shortfalls[0];
+    issues.push(`前年割れが最大の日は ${w.ds.slice(5)}(${RP_WD[w.g]})で ${rpSgnY(w.diff)}（前年 ${w.pds.slice(5)}）。同曜日の販売状況を確認。`);
+  }
+  lv2.slice(0,2).forEach(a=>issues.push(`${a.room} が2ヶ月連続で稼働率前年割れ（当月 ${a.cur.toFixed(1)}% ／ 前年 ${a.py.toFixed(1)}%）。早めの対策を。`));
+  const shown=issues.slice(0,5);
+  html+=`<div class="card"><h3>論点リスト（確認すべきこと）</h3>`;
+  if(!shown.length){
+    html+=`<div class="rp-ok">大きな懸念点はありません。現状の好調を維持しつつ、上振れ要因の把握を。</div>`;
+  }else{
+    html+=shown.map(x=>`<div class="rp-issue">${x}</div>`).join('');
+    if(issues.length>shown.length)html+=`<div class="rp-note">※ 検出した論点は全${issues.length}件で、重要度の高い上位5件を表示しています。</div>`;
+  }
+  html+=`</div>`;
+
+  el.innerHTML=html;
+}
+
+showTab('report',document.querySelector('.nav-tab'));
 switchAllTabs(DATA.default_month);
 
 """
