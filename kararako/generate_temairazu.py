@@ -118,6 +118,8 @@ a{{color:var(--ac);text-decoration:none;}}
 .kpi .label{{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}}
 .kpi .value{{font-size:20px;font-weight:500;font-family:'DM Mono',monospace;}}
 .kpi .unit{{font-size:11px;color:var(--mu);margin-left:2px;}}
+.kpi .py{{font-size:10px;color:var(--mu);margin-top:5px;font-family:'DM Mono',monospace;letter-spacing:.2px;}}
+.kpi .py .d{{margin-left:6px;font-weight:500;}}
 .card{{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:14px;}}
 .card h3{{font-size:13px;font-weight:500;margin-bottom:12px;display:flex;align-items:center;gap:8px;}}
 .card h3 .badge{{font-size:10px;background:#8b6914;color:#faf8f4;padding:1px 7px;border-radius:10px;font-weight:400;}}
@@ -246,23 +248,82 @@ function printAll(){document.querySelectorAll('.section').forEach(s=>s.classList
 function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;}}
 
 let rangeMode=false;let rangeFrom='';let rangeTo='';
+
+/* ========== 前年対比ヘルパー（月別実績タブ） ========== */
+// CSVの月跨ぎ流入で数件だけ入っている端数月（例 2024-12）は「前年実績あり」と見なさない。
+// 全月の室数の中央値の15%未満を端数月と判定（実データの最小月でも中央値の6割程度あるため安全）。
+function fragmentMonths(){
+  if(window._fragMo)return window._fragMo;
+  const vals=DATA.months.map(mm=>(DATA.monthly[mm]||{}).rooms||0).slice().sort((a,b)=>a-b);
+  const med=vals.length?vals[Math.floor(vals.length/2)]:0;
+  window._fragMo=new Set(DATA.months.filter(mm=>((DATA.monthly[mm]||{}).rooms||0)<med*0.15));
+  return window._fragMo;
+}
+function pyMonth(mm){return (Number(mm.slice(0,4))-1)+mm.slice(4);}
+function hasPy(mm){const p=pyMonth(mm);return !!DATA.monthly[p]&&!fragmentMonths().has(p);}
+// 前年比（％）。inv=true はキャンセル率のように「増加＝悪化」の指標
+function pyDelta(cur,py,inv){
+  if(py===null||py===undefined)return{txt:'-',cls:''};
+  if(!py)return{txt:'-',cls:''};// 前年ゼロは率を出さず、新規/消失はピルで示す
+  const d=(cur-py)/py*100;
+  return{txt:(d>0?'+':'')+d.toFixed(1)+'%',cls:d>0?(inv?'dn':'up'):(d<0?(inv?'up':'dn'):'')};
+}
+// 前年差（ポイント）
+function ptDelta(cur,py,inv){
+  const d=cur-py;
+  return{txt:(d>0?'+':'')+d.toFixed(1)+'pt',cls:d>0?(inv?'dn':'up'):(d<0?(inv?'up':'dn'):'')};
+}
+// チャネル別集計：monthly にチャネル内訳が無いため daily の室数比で按分。
+// daily の channels は室数しか持たないので、売上・RN・人数はその日の室数シェアで按分する。
+function aggChannels(months){
+  const map={};
+  months.forEach(mm=>{
+    (DATA.daily[mm]||[]).forEach(d=>{const tr=d.rooms;Object.entries(d.channels).forEach(([ch,rooms])=>{
+      if(!map[ch])map[ch]={rooms:0,revenue:0,rn:0,persons:0};
+      map[ch].rooms+=rooms;map[ch].revenue+=tr>0?Math.round(d.revenue*rooms/tr):0;
+      map[ch].rn+=tr>0?Math.round(d.rn*rooms/tr):0;map[ch].persons+=tr>0?Math.round(d.persons*rooms/tr):0;
+    });});
+  });
+  return map;
+}
+function chStats(d){return{rooms:d.rooms,rn:d.rn,revenue:d.revenue,persons:d.persons,adr:d.rn>0?Math.round(d.revenue/d.rn):0};}
+function chDot(n){return`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(n)};margin-right:6px"></span>`;}
+// 当年 / 前年 / 比 の3セル
+function pyTrio(cur,py,fn){
+  const d=pyDelta(cur,py,false);
+  return`<td class="num" style="border-left:2px solid var(--bd)">${fn(cur)}</td>`+
+    `<td class="num" style="color:var(--mu)">${py?fn(py):'-'}</td>`+
+    `<td class="num ${d.cls}" style="font-size:10.5px">${d.txt}</td>`;
+}
+
 function drawMonthly(m){const el=document.getElementById('tab-monthly');
   const allM=DATA.months;
   if(!rangeFrom)rangeFrom=allM[0];
   if(!rangeTo)rangeTo=allM[allM.length-1];
   let fromOpts=allM.map(mm=>`<option value="${mm}" ${rangeFrom===mm?'selected':''}>${mm}</option>`).join('');
   let toOpts=allM.map(mm=>`<option value="${mm}" ${rangeTo===mm?'selected':''}>${mm}</option>`).join('');
+
+  // Determine which months to aggregate
+  const targetMonths=rangeMode?allM.filter(mm=>mm>=rangeFrom&&mm<=rangeTo):[m];
+  const label=rangeMode?`${rangeFrom} 〜 ${rangeTo}`:m;
+
+  // 前年対比の可否：対象月すべてに前年実績がある場合のみ表示（部分的な前年は歪むため出さない）
+  const missPy=targetMonths.filter(mm=>!hasPy(mm));
+  const showPy=targetMonths.length>0&&missPy.length===0;
+  const pyMonths=showPy?targetMonths.map(pyMonth):[];
+  const pyLabel=showPy?(rangeMode?`${pyMonth(rangeFrom)} 〜 ${pyMonth(rangeTo)}`:pyMonth(m)):'';
+  const pyNote=showPy
+    ?`<span style="font-size:10.5px;color:var(--mu);margin-left:8px">前年：${pyLabel}</span>`
+    :`<span style="font-size:10.5px;color:var(--mu);margin-left:8px">前年データなし（${missPy.slice(0,3).join('・')}${missPy.length>3?' 他':''} の前年実績が未取込）</span>`;
+
   let rangeUI=`<div class="filter-row" style="margin-bottom:12px">
     <button class="toggle-btn ${!rangeMode?'active':''}" onclick="rangeMode=false;drawMonthly(tabMonths.monthly)">月別</button>
     <button class="toggle-btn ${rangeMode?'active':''}" onclick="rangeMode=true;drawMonthly(tabMonths.monthly)">期間指定</button>
     ${rangeMode?`<select onchange="rangeFrom=this.value;drawMonthly(tabMonths.monthly)" style="margin-left:8px">${fromOpts}</select>
     <span style="color:var(--mu);font-size:11px">〜</span>
     <select onchange="rangeTo=this.value;drawMonthly(tabMonths.monthly)">${toOpts}</select>`:''}
+    ${pyNote}
   </div>`;
-
-  // Determine which months to aggregate
-  const targetMonths=rangeMode?allM.filter(mm=>mm>=rangeFrom&&mm<=rangeTo):[m];
-  const label=rangeMode?`${rangeFrom} 〜 ${rangeTo}`:m;
 
   // Aggregate monthly data
   let aRev=0,aRooms=0,aRn=0,aPersons=0,aCancel=0,aTotal=0;
@@ -274,21 +335,88 @@ function drawMonthly(m){const el=document.getElementById('tab-monthly');
   const aPerPerson=aPersons?Math.round(aRev/aPersons):0;
   const aCancelRate=aTotal?((aCancel/aTotal)*100).toFixed(1):0;
 
-  // Aggregate channel data from daily
-  const chRevMap={};
-  targetMonths.forEach(mm=>{
-    (DATA.daily[mm]||[]).forEach(d=>{const tr=d.rooms;Object.entries(d.channels).forEach(([ch,rooms])=>{
-      if(!chRevMap[ch])chRevMap[ch]={rooms:0,revenue:0,rn:0,persons:0};
-      chRevMap[ch].rooms+=rooms;chRevMap[ch].revenue+=tr>0?Math.round(d.revenue*rooms/tr):0;
-      chRevMap[ch].rn+=rooms;chRevMap[ch].persons+=tr>0?Math.round(d.persons*rooms/tr):0;
-    });});
+  // Aggregate previous-year monthly data
+  let pRev=0,pRooms=0,pRn=0,pPersons=0,pCancel=0,pTotal=0;
+  pyMonths.forEach(mm=>{
+    const md=DATA.monthly[mm];if(!md)return;
+    pRev+=md.revenue;pRooms+=md.rooms;pRn+=md.rn;pPersons+=md.persons;pCancel+=md.cancel;pTotal+=md.total;
   });
-  const chList=Object.entries(chRevMap).sort((a,b)=>b[1].revenue-a[1].revenue).map(([ch,d])=>({name:ch,rooms:d.rooms,rn:d.rn,revenue:d.revenue,persons:d.persons,adr:d.rn>0?Math.round(d.revenue/d.rn):0}));
+  const pAdr=pRn?Math.round(pRev/pRn):0;
+  const pPerPerson=pPersons?Math.round(pRev/pPersons):0;
+  const pCancelRateN=pTotal?(pCancel/pTotal)*100:0;
+
+  // KPI cards (+ 前年 / 前年比)
+  const kpis=[
+    {c:'blue',l:'売上合計',v:(aRev/10000).toFixed(0),u:'万円',cur:aRev,py:pRev,f:x=>(x/10000).toFixed(0)+'万円'},
+    {c:'green',l:'予約件数',v:fmt(aRooms),u:'件',cur:aRooms,py:pRooms,f:x=>fmt(x)+'件'},
+    {c:'blue',l:'室泊数 RN',v:fmt(aRn),u:'RN',cur:aRn,py:pRn,f:x=>fmt(x)+'RN'},
+    {c:'orange',l:'ADR',v:fmt(aAdr),u:'円',cur:aAdr,py:pAdr,f:x=>fmtY(x)},
+    {c:'green',l:'人泊単価',v:fmt(aPerPerson),u:'円',cur:aPerPerson,py:pPerPerson,f:x=>fmtY(x)},
+    {c:'red',l:'キャンセル率',v:aCancelRate,u:'%',cur:Number(aCancelRate),py:pCancelRateN,f:x=>x.toFixed(1)+'%',pt:true,inv:true},
+  ];
+  const kpiHtml=kpis.map(k=>{
+    let py;
+    if(showPy){
+      const d=k.pt?ptDelta(k.cur,k.py,k.inv):pyDelta(k.cur,k.py,k.inv);
+      py=`<div class="py">前年 ${k.f(k.py)}<span class="d ${d.cls}">${d.txt}</span></div>`;
+    }else{
+      py=`<div class="py">前年データなし</div>`;
+    }
+    return`<div class="kpi ${k.c}"><div class="label">${k.l}</div><div class="value">${k.v}<span class="unit">${k.u}</span></div>${py}</div>`;
+  }).join('');
+
+  // Aggregate channel data from daily
+  const chMap=aggChannels(targetMonths);
+  const pyChMap=showPy?aggChannels(pyMonths):{};
+  const chList=Object.entries(chMap).sort((a,b)=>b[1].revenue-a[1].revenue).map(([ch,d])=>Object.assign({name:ch},chStats(d)));
   const totalRev=chList.reduce((a,c)=>a+c.revenue,0);
-  let chRows=chList.map(c=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${chColor(c.name)};margin-right:6px"></span>${c.name}</td><td class="num">${fmt(c.rooms)}</td><td class="num">${fmt(c.rn)}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(c.adr)}</td><td class="num">${fmt(c.persons)}</td><td class="num">${pct(c.revenue,totalRev)}%</td></tr>`).join('');
-  el.innerHTML=rangeUI+`<div class="kpi-row"><div class="kpi blue"><div class="label">売上合計</div><div class="value">${(aRev/10000).toFixed(0)}<span class="unit">万円</span></div></div><div class="kpi green"><div class="label">予約件数</div><div class="value">${fmt(aRooms)}<span class="unit">件</span></div></div><div class="kpi blue"><div class="label">室泊数 RN</div><div class="value">${fmt(aRn)}<span class="unit">RN</span></div></div><div class="kpi orange"><div class="label">ADR</div><div class="value">${fmt(aAdr)}<span class="unit">円</span></div></div><div class="kpi green"><div class="label">人泊単価</div><div class="value">${fmt(aPerPerson)}<span class="unit">円</span></div></div><div class="kpi red"><div class="label">キャンセル率</div><div class="value">${aCancelRate}<span class="unit">%</span></div></div></div><div class="grid-2"><div class="card"><h3>チャネル別構成${rangeMode?' ('+label+')':''}</h3><div class="chart-wrap"><canvas id="monthly-pie"></canvas></div></div><div class="card"><h3>チャネル別明細</h3><div class="scroll-table"><table><tr><th>チャネル</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">構成比</th></tr>${chRows}</table></div></div></div>`;
+  const pyList=Object.entries(pyChMap).sort((a,b)=>b[1].revenue-a[1].revenue).map(([ch,d])=>Object.assign({name:ch},chStats(d)));
+  const pyTotalRev=pyList.reduce((a,c)=>a+c.revenue,0);
+  const lost=pyList.filter(c=>!chMap[c.name]);
+  const ZERO={rooms:0,rn:0,revenue:0,persons:0,adr:0};
+
+  let chRows,tableCard;
+  if(showPy){
+    const METRICS=['室数','RN','売上','ADR','人数'];
+    const th1=METRICS.map(x=>`<th class="num" colspan="3" style="text-align:center;border-left:2px solid var(--bd)">${x}</th>`).join('');
+    const th2=METRICS.map(()=>`<th class="num" style="border-left:2px solid var(--bd)">当年</th><th class="num">前年</th><th class="num">比</th>`).join('');
+    chRows=chList.map(c=>{
+      const p=pyChMap[c.name]?chStats(pyChMap[c.name]):ZERO;
+      const tag=pyChMap[c.name]?'':` <span class="pill pill-green" style="margin-left:4px">新規</span>`;
+      return`<tr><td style="white-space:nowrap">${chDot(c.name)}${c.name}${tag}</td>`+
+        pyTrio(c.rooms,p.rooms,fmt)+pyTrio(c.rn,p.rn,fmt)+pyTrio(c.revenue,p.revenue,fmtY)+
+        pyTrio(c.adr,p.adr,fmtY)+pyTrio(c.persons,p.persons,fmt)+
+        `<td class="num">${pct(c.revenue,totalRev)}%</td></tr>`;
+    }).join('');
+    chRows+=lost.map(c=>`<tr style="opacity:.7"><td style="white-space:nowrap">${chDot(c.name)}${c.name} <span class="pill pill-red" style="margin-left:4px">消失</span></td>`+
+      pyTrio(0,c.rooms,fmt)+pyTrio(0,c.rn,fmt)+pyTrio(0,c.revenue,fmtY)+
+      pyTrio(0,c.adr,fmtY)+pyTrio(0,c.persons,fmt)+
+      `<td class="num">-</td></tr>`).join('');
+    tableCard=`<div class="card"><h3>チャネル別明細（前年対比）<span class="badge">${label} vs ${pyLabel}</span></h3>
+      <div class="scroll-table" style="overflow-x:auto"><table style="min-width:1180px">
+        <tr><th rowspan="2" style="min-width:150px">チャネル</th>${th1}<th rowspan="2" class="num">構成比</th></tr>
+        <tr>${th2}</tr>${chRows}</table></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:8px">※ チャネル別の RN・売上・人数は Daily の室数比で按分した推計値です（日次で丸めるため月合計と最大数RN程度ずれます）。</div></div>`;
+  }else{
+    chRows=chList.map(c=>`<tr><td>${chDot(c.name)}${c.name}</td><td class="num">${fmt(c.rooms)}</td><td class="num">${fmt(c.rn)}</td><td class="num">${fmtY(c.revenue)}</td><td class="num">${fmtY(c.adr)}</td><td class="num">${fmt(c.persons)}</td><td class="num">${pct(c.revenue,totalRev)}%</td></tr>`).join('');
+    tableCard=`<div class="card"><h3>チャネル別明細</h3><div class="scroll-table"><table><tr><th>チャネル</th><th class="num">室数</th><th class="num">RN</th><th class="num">売上</th><th class="num">ADR</th><th class="num">人数</th><th class="num">構成比</th></tr>${chRows}</table></div></div>`;
+  }
+
+  // Layout: 前年ありは 当年/前年の2円グラフ + 全幅テーブル、前年なしは従来どおり
+  const pieCur=`<div class="card"><h3>チャネル別構成${showPy?'（'+label+'）':(rangeMode?' ('+label+')':'')}</h3><div class="chart-wrap"><canvas id="monthly-pie"></canvas></div></div>`;
+  const layout=showPy
+    ?`<div class="grid-2">${pieCur}<div class="card"><h3>チャネル別構成（前年：${pyLabel}）</h3><div class="chart-wrap"><canvas id="monthly-pie-py"></canvas></div></div></div>${tableCard}`
+    :`<div class="grid-2">${pieCur}${tableCard}</div>`;
+
+  el.innerHTML=rangeUI+`<div class="kpi-row">${kpiHtml}</div>`+layout;
+
   const cData=chList.filter(c=>c.revenue>0);
-  makeChart('monthly-pie',{type:'doughnut',data:{labels:cData.map(c=>c.name),datasets:[{data:cData.map(c=>c.revenue),backgroundColor:cData.map(c=>chColor(c.name)),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#2c2418',font:{size:11},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': \u00a5'+fmt(ctx.raw)+' ('+pct(ctx.raw,totalRev)+'%)'}}}}});}
+  makeChart('monthly-pie',{type:'doughnut',data:{labels:cData.map(c=>c.name),datasets:[{data:cData.map(c=>c.revenue),backgroundColor:cData.map(c=>chColor(c.name)),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#2c2418',font:{size:11},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': ¥'+fmt(ctx.raw)+' ('+pct(ctx.raw,totalRev)+'%)'}}}}});
+  if(showPy){
+    const pData=pyList.filter(c=>c.revenue>0);
+    makeChart('monthly-pie-py',{type:'doughnut',data:{labels:pData.map(c=>c.name),datasets:[{data:pData.map(c=>c.revenue),backgroundColor:pData.map(c=>chColor(c.name)),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#2c2418',font:{size:11},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': ¥'+fmt(ctx.raw)+' ('+pct(ctx.raw,pyTotalRev)+'%)'}}}}});
+  }else{destroyChart('monthly-pie-py');}
+}
 
 /* ========== YOY: 先行予約 同日対比（テーブル形式） ========== */
 function calcPosition(baseDate){
