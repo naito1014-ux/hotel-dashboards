@@ -7,11 +7,26 @@ generate_temairazu.py
   python3 generate_temairazu.py                     # カレントの data/ を探索
   python3 generate_temairazu.py --hotel /path/to/hotel  # 指定フォルダの data/ を探索
   python3 generate_temairazu.py --no-open           # ブラウザを開かない
+  python3 generate_temairazu.py --facility kararako # 掲載順位・クチコミのタブを付ける
 
 data/ フォルダの命名規則:
   Stay:   temairazu_stay_YYYYMM.csv   (例: temairazu_stay_202605.csv)
   Pickup: temairazu_pickup_YYYYMM.csv (例: temairazu_pickup_202605.csv)
   毎月2枚ずつ追加していくだけで、自動的に全月が統合されます。
+
+■ --facility を使うときだけ hotel_report_master 側に依存する（2026-08-15 追加）
+  掲載順位・クチコミは hotel_report_master が収集し、dashboard パッケージが
+  Python/CSS/HTML/JS の4層を持っている。--facility を渡すとそれを読み込んで
+  タブを2つ足す。渡さなければ従来どおり、この1本と temairazu_analyzer.py と
+  data/ だけで完結する（依存は増えない）。
+
+  ★ --facility を使う場合は venv の python で実行すること ★
+  読み込む先で PyYAML（config.yml の読み取り）が要る。システムの python3 には
+  入っていないため、--facility 付きでは動かない。--facility 無しなら従来どおり
+  システム python でも動く。dashboard の読み込みは --facility 指定時だけに
+  遅らせてあるので、無指定の実行が依存で失敗することはない。
+      ./venv/bin/python3 generate_temairazu.py --facility kararako --no-open
+      （venv は hotel_report_master/venv）
 """
 import sys
 import json
@@ -25,6 +40,102 @@ from temairazu_analyzer import load_temairazu_data
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 
+# --facility 指定時にだけ読み込む dashboard パッケージ。無指定なら None のまま
+_DASHBOARD = None
+
+
+def _master_dir() -> Path:
+    """hotel_report_master を相対で解決する。
+
+    絶対パスを直書きしない。両リポジトリは AIレポート/ 直下の兄弟なので、
+    このファイル(<AIレポート>/hotel-dashboards/<施設>/generate_temairazu.py)
+    から2つ上がると AIレポート/ になる。
+    """
+    master = Path(__file__).resolve().parents[2] / "hotel_report_master"
+    if not master.is_dir():
+        raise SystemExit(
+            f"\nエラー: hotel_report_master が見つかりません\n"
+            f"  探した場所: {master}\n"
+            f"  この生成器の場所: {Path(__file__).resolve()}\n"
+            f"  hotel-dashboards と hotel_report_master が AIレポート/ 直下に\n"
+            f"  並んでいる前提です。片方だけ移動していないか確認してください。\n"
+            f"  （--facility を付けない実行なら master は不要です）"
+        )
+    return master
+
+
+def _dashboard():
+    """dashboard パッケージを遅延で読み込む。何が無いかを必ず明示して落ちる。"""
+    global _DASHBOARD
+    if _DASHBOARD is not None:
+        return _DASHBOARD
+    master = _master_dir()
+    pkg = master / "dashboard" / "__init__.py"
+    if not pkg.exists():
+        raise SystemExit(
+            f"\nエラー: dashboard パッケージが見つかりません\n"
+            f"  探した場所: {pkg}\n"
+            f"  hotel_report_master 側が古い可能性があります。"
+        )
+    if str(master) not in sys.path:
+        sys.path.insert(0, str(master))
+    try:
+        import dashboard as _d
+    except ImportError as e:
+        raise SystemExit(
+            f"\nエラー: dashboard の読み込みに失敗しました: {e}\n"
+            f"  読み込み元: {master}\n"
+            f"  PyYAML が要ります。hotel_report_master/venv の python で\n"
+            f"  実行してください:\n"
+            f"    {master / 'venv/bin/python3'} {Path(__file__).name} --facility <id>"
+        )
+    _DASHBOARD = _d
+    return _DASHBOARD
+
+
+def load_dashboard_data(facility_id: str) -> dict:
+    """掲載順位・クチコミを hotel_report_master から読む。
+
+    ★ 使うのは収集データの3系統だけ ★
+    load_context() は report_dir_name から既存CSVの置き場も解決するが、
+    その結果（ctx['paths']）には一切触らない。手間いらず系のデータは
+    --hotel か自分の隣の data/ にあり、master 側を見に行ってはいけない。
+    手間いらず系の config.yml は report_dir_name: null なので、参照すると
+    master 自身にフォールバックして自分のデータを見失う。
+    """
+    d = _dashboard()
+    from dashboard.context import load_context, FACILITIES_DIR
+
+    cfg_path = FACILITIES_DIR / facility_id / "config.yml"
+    if not cfg_path.exists():
+        raise SystemExit(
+            f"\nエラー: 施設マスタがありません\n"
+            f"  探した場所: {cfg_path}\n"
+            f"  facilities/ 配下のディレクトリ名を --facility に渡してください。"
+        )
+    ctx = load_context(facility_id)
+    if ctx.get("config") is None:
+        raise SystemExit(
+            f"\nエラー: {cfg_path} を読めませんでした\n"
+            f"  理由として記録されたもの:\n"
+            + "".join(f"    - {n}\n" for n in ctx.get("notes") or ["(記録なし)"])
+            + f"  PyYAML が無い場合もここに来ます。venv の python で実行してください。"
+        )
+
+    extra = {
+        "listing_rank": d.listing_rank_payload(ctx),
+        "reviews": d.reviews_payload(ctx),
+    }
+    lr_m = extra["listing_rank"].get("months") or []
+    rv_m = extra["reviews"].get("months") or []
+    print(f"  掲載順位: {len(lr_m)}ヶ月"
+          + (f"  {lr_m[0]} 〜 {lr_m[-1]}" if lr_m else "（未収集）"))
+    print(f"  クチコミ: {len(rv_m)}ヶ月"
+          + (f"  {rv_m[0]} 〜 {rv_m[-1]}" if rv_m else "（未収集）"))
+    for n in ctx.get("notes") or []:
+        print(f"  [note] {n}")
+    return extra
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -32,6 +143,9 @@ def main():
                         help="ホテルフォルダのパス（data/ サブフォルダを探索）")
     parser.add_argument("--no-open", action="store_true",
                         help="ブラウザを自動で開かない")
+    parser.add_argument("--facility", type=str, default=None,
+                        help="施設ID（hotel_report_master/facilities/ 配下の名前）。"
+                             "指定すると掲載順位・クチコミのタブが付く")
     args = parser.parse_args()
 
     print("=" * 50)
@@ -52,11 +166,15 @@ def main():
     p_count = len(data["pickup"])
     print(f"  月次: {m_count}ヶ月  Daily: {d_count}件  Room: {r_count}件  Pickup: {p_count}日")
 
+    # 掲載順位・クチコミ（--facility 指定時のみ）。ここで読むのは
+    # hotel_report_master 側の収集JSONだけで、上の手間いらずデータには触らない
+    extra = load_dashboard_data(args.facility) if args.facility else None
+
     print("\n[2/2] ダッシュボード生成中...")
     out_dir = Path(args.hotel) / "output" if args.hotel else OUTPUT_DIR
     out_dir.mkdir(exist_ok=True)
     out = out_dir / "index.html"
-    out.write_text(build_html(data), encoding="utf-8")
+    out.write_text(build_html(data, extra), encoding="utf-8")
     print(f"  出力: {out}")
 
     print("\n✓ 完了！")
@@ -70,13 +188,26 @@ def main():
 # HTML 生成
 # ========================================================================
 
-def build_html(data: dict) -> str:
+def build_html(data: dict, extra: dict = None) -> str:
+    """extra は load_dashboard_data() の戻り（掲載順位・クチコミ）。無ければ None。
+
+    temairazu_analyzer.py は触らずに、ここで data へ足す。analyzer は
+    手間いらずCSVの集計だけを担当させ、影響範囲を広げない。
+    """
+    if extra:
+        data.update(extra)
+
+    # データが1ヶ月も無ければタブ自体を出さない。空タブが出ていると
+    # 「データが消えた」ようにしか見えず、収集済みの施設と区別が付かない
+    has_lr = bool((data.get("listing_rank") or {}).get("months"))
+    has_rv = bool((data.get("reviews") or {}).get("months"))
+
     data_json = json.dumps(data, ensure_ascii=False, default=str)
-    return html_head(data) + html_body(data) + \
-        f"\n<script>\nconst DATA = {data_json};\n{make_js()}\n</script>\n</body>\n</html>"
+    return html_head(data, has_lr, has_rv) + html_body(data, has_lr, has_rv) + \
+        f"\n<script>\nconst DATA = {data_json};\n{make_js(has_lr, has_rv)}\n</script>\n</body>\n</html>"
 
 
-def html_head(data):
+def html_head(data, has_lr=False, has_rv=False):
     hotel = data["hotel_name"]
     gen_at = data["generated_at"]
     return f"""<!DOCTYPE html>
@@ -175,13 +306,14 @@ tr:hover td{{background:rgba(139,105,20,0.04);}}
 .rp-note{{font-size:10px;color:var(--mu);margin-top:8px;}}
 .footer{{text-align:center;padding:20px;color:var(--mu);font-size:10px;border-top:1px solid var(--bd);margin-top:20px;}}
 @media print{{.header,.nav,.month-bar{{position:static;}}.section{{display:block!important;page-break-before:always;}}body{{background:#fff;}}}}
+{_dashboard().css() if (has_lr or has_rv) else ''}
 </style>
 </head>
 <body>
 """
 
 
-def html_body(data):
+def html_body(data, has_lr=False, has_rv=False):
     hotel = data["hotel_name"]
     gen_at = data["generated_at"]
     months = data["months"]
@@ -193,6 +325,11 @@ def html_body(data):
         ("cancel", "キャンセル"), ("pickup", "Pickup"), ("leadtime", "Leadtime"),
         ("pref", "都道府県"), ("pref_monthly", "都道府県月次"), ("travel", "旅行動態"),
     ]
+    # 掲載順位・クチコミは、データがある施設にだけ後ろへ足す。
+    # ラベルは dashboard.TABS を正とする（施設ごとに書き分けない）
+    if has_lr or has_rv:
+        _shown = {'listing_rank': has_lr, 'reviews': has_rv}
+        tab_defs += [(k, label) for k, label in _dashboard().TABS if _shown[k]]
 
     nav = "".join(
         f'<button class="nav-tab" onclick="showTab(\'{t}\',this)">{l}</button>'
@@ -203,7 +340,14 @@ def html_body(data):
         for m in months
     )
     month_opts = "".join(f'<option value="{m}">{m}</option>' for m in months)
-    sections = "\n".join(f'<div class="section" id="tab-{t}"></div>' for t, _ in tab_defs)
+    # 既存13タブは中身が空の div で、JS が innerHTML で組み立てる。
+    # 掲載順位・クチコミは静的HTMLを持つので、そのタブだけ中身入りにする。
+    # 方式が違うだけで競合はしない（どちらも id="tab-<キー>" の div 1枚）
+    static = _dashboard().section_map(has_lr, has_rv) if (has_lr or has_rv) else {}
+    sections = "\n".join(
+        static.get(t) or f'<div class="section" id="tab-{t}"></div>'
+        for t, _ in tab_defs
+    )
 
     return f"""
 <div class="header">
@@ -228,11 +372,23 @@ def html_body(data):
 """
 
 
-def make_js():
+def make_js(has_lr=False, has_rv=False):
     """ダッシュボード描画ロジック（JavaScript文字列を返す）。"""
     # build_v2.py の JS をそのまま埋め込む
     # DATA は呼び出し元で注入済み
-    return JS_CODE
+    if not (has_lr or has_rv):
+        return JS_CODE
+    d = _dashboard()
+    # js_prelude() は base（Chart.js の共通オプション）と mk()。
+    # TL系は自前で持っているので使わないが、こちらは持っていないので足す。
+    # charts は下の JS_CODE が `const charts={}` を持っているため入っていない。
+    # base は drawYoY() 内のローカル `const base` と名前が同じだが、あちらは
+    # 関数内宣言なので shadowing になるだけで壊れない。
+    #
+    # js() は掲載順位・クチコミの両方を必ず返す。片方のタブしか出さない場合も
+    # 分割しないこと（クチコミJSが掲載順位の LR_OTA_NAME / LR_OTA_COLOR を
+    # 参照しているため、欠けると ReferenceError でタブが白くなる）
+    return JS_CODE + d.js_prelude() + d.js()
 
 
 # ========================================================================
@@ -263,7 +419,9 @@ function fmt(n){if(n==null)return'-';return Number(n).toLocaleString();}
 function fmtY(n){return'\u00a5'+fmt(n);}
 function pct(a,b){return b?(a/b*100).toFixed(1):'-';}
 const monthTabs=['report','monthly','daily','room','plan','cancel','pref','travel'];
-const noMonthBar=['yoy','room_monthly','pref_monthly'];
+// 掲載順位・クチコミは自前の月切替を持つので、共通の月バーは出さない。
+// タブを出していない施設でも配列に入れておくだけなら無害
+const noMonthBar=['yoy','room_monthly','pref_monthly','listing_rank','reviews'];
 let tabMonths={};monthTabs.forEach(t=>{tabMonths[t]=DATA.default_month;});
 let curTab='monthly';
 const charts={};
@@ -272,7 +430,11 @@ function makeChart(id,cfg){destroyChart(id);const c=document.getElementById(id);
 function showTab(name,el){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');if(el)el.classList.add('active');curTab=name;document.getElementById('monthBar').style.display=noMonthBar.includes(name)?'none':'';const tm=tabMonths[name]||DATA.default_month;document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===tm));drawTab(name);}
 function switchAllTabs(m){monthTabs.forEach(t=>{tabMonths[t]=m;});document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===m));const sel=document.getElementById('global-month-select');if(sel)sel.value=m;drawTab(curTab);}
 function printAll(){document.querySelectorAll('.section').forEach(s=>s.classList.add('active'));setTimeout(()=>{window.print();},300);}
-function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'report':drawReport(m);break;case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;}}
+function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){case'report':drawReport(m);break;case'monthly':drawMonthly(m);break;case'yoy':drawYoY();break;case'daily':drawDaily(m);break;case'room':drawRoom(m);break;case'room_monthly':drawRoomMonthly();break;case'plan':drawPlan(m);break;case'cancel':drawCancel(m);break;case'pickup':drawPickup();break;case'leadtime':drawLeadtime();break;case'pref':drawPref(m);break;case'pref_monthly':drawPrefMonthly();break;case'travel':drawTravel(m);break;
+// 掲載順位・クチコミ。タブを出していない施設では描画関数自体が
+// 埋め込まれないので、typeof で確かめてから呼ぶ
+case'listing_rank':if(typeof drawListingRank==='function')drawListingRank();break;
+case'reviews':if(typeof drawReviews==='function')drawReviews();break;}}
 
 let rangeMode=false;let rangeFrom='';let rangeTo='';
 
