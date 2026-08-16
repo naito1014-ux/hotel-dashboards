@@ -15,9 +15,10 @@ data/ フォルダの命名規則:
   毎月2枚ずつ追加していくだけで、自動的に全月が統合されます。
 
 ■ --facility を使うときだけ hotel_report_master 側に依存する（2026-08-15 追加）
-  掲載順位・クチコミは hotel_report_master が収集し、dashboard パッケージが
-  Python/CSS/HTML/JS の4層を持っている。--facility を渡すとそれを読み込んで
-  タブを2つ足す。渡さなければ従来どおり、この1本と temairazu_analyzer.py と
+  掲載順位・売上ランキング・クチコミは hotel_report_master が収集し、
+  dashboard パッケージが Python/CSS/HTML/JS の4層を持っている。--facility を
+  渡すとそれを読み込んでタブを3つ足す。
+  渡さなければ従来どおり、この1本と temairazu_analyzer.py と
   data/ だけで完結する（依存は増えない）。
 
   ★ --facility を使う場合は venv の python で実行すること ★
@@ -125,13 +126,17 @@ def load_dashboard_data(facility_id: str) -> dict:
     extra = {
         "listing_rank": d.listing_rank_payload(ctx),
         "reviews": d.reviews_payload(ctx),
+        "sales_rank": d.sales_rank_payload(ctx),
     }
     lr_m = extra["listing_rank"].get("months") or []
     rv_m = extra["reviews"].get("months") or []
+    sr_m = extra["sales_rank"].get("months") or []
     print(f"  掲載順位: {len(lr_m)}ヶ月"
           + (f"  {lr_m[0]} 〜 {lr_m[-1]}" if lr_m else "（未収集）"))
     print(f"  クチコミ: {len(rv_m)}ヶ月"
           + (f"  {rv_m[0]} 〜 {rv_m[-1]}" if rv_m else "（未収集）"))
+    print(f"  売上ランキング: {len(sr_m)}ヶ月"
+          + (f"  {sr_m[0]} 〜 {sr_m[-1]}" if sr_m else "（未収集）"))
     for n in ctx.get("notes") or []:
         print(f"  [note] {n}")
     return extra
@@ -166,7 +171,7 @@ def main():
     p_count = len(data["pickup"])
     print(f"  月次: {m_count}ヶ月  Daily: {d_count}件  Room: {r_count}件  Pickup: {p_count}日")
 
-    # 掲載順位・クチコミ（--facility 指定時のみ）。ここで読むのは
+    # 掲載順位・売上ランキング・クチコミ（--facility 指定時のみ）。ここで読むのは
     # hotel_report_master 側の収集JSONだけで、上の手間いらずデータには触らない
     extra = load_dashboard_data(args.facility) if args.facility else None
 
@@ -201,13 +206,14 @@ def build_html(data: dict, extra: dict = None) -> str:
     # 「データが消えた」ようにしか見えず、収集済みの施設と区別が付かない
     has_lr = bool((data.get("listing_rank") or {}).get("months"))
     has_rv = bool((data.get("reviews") or {}).get("months"))
+    has_sr = bool((data.get("sales_rank") or {}).get("months"))
 
     data_json = json.dumps(data, ensure_ascii=False, default=str)
-    return html_head(data, has_lr, has_rv) + html_body(data, has_lr, has_rv) + \
-        f"\n<script>\nconst DATA = {data_json};\n{make_js(has_lr, has_rv)}\n</script>\n</body>\n</html>"
+    return html_head(data, has_lr, has_rv, has_sr) + html_body(data, has_lr, has_rv, has_sr) + \
+        f"\n<script>\nconst DATA = {data_json};\n{make_js(has_lr, has_rv, has_sr)}\n</script>\n</body>\n</html>"
 
 
-def html_head(data, has_lr=False, has_rv=False):
+def html_head(data, has_lr=False, has_rv=False, has_sr=False):
     hotel = data["hotel_name"]
     gen_at = data["generated_at"]
     return f"""<!DOCTYPE html>
@@ -306,14 +312,14 @@ tr:hover td{{background:rgba(139,105,20,0.04);}}
 .rp-note{{font-size:10px;color:var(--mu);margin-top:8px;}}
 .footer{{text-align:center;padding:20px;color:var(--mu);font-size:10px;border-top:1px solid var(--bd);margin-top:20px;}}
 @media print{{.header,.nav,.month-bar{{position:static;}}.section{{display:block!important;page-break-before:always;}}body{{background:#fff;}}}}
-{_dashboard().css() if (has_lr or has_rv) else ''}
+{_dashboard().css() if (has_lr or has_rv or has_sr) else ''}
 </style>
 </head>
 <body>
 """
 
 
-def html_body(data, has_lr=False, has_rv=False):
+def html_body(data, has_lr=False, has_rv=False, has_sr=False):
     hotel = data["hotel_name"]
     gen_at = data["generated_at"]
     months = data["months"]
@@ -325,11 +331,11 @@ def html_body(data, has_lr=False, has_rv=False):
         ("cancel", "キャンセル"), ("pickup", "Pickup"), ("leadtime", "Leadtime"),
         ("pref", "都道府県"), ("pref_monthly", "都道府県月次"), ("travel", "旅行動態"),
     ]
-    # 掲載順位・クチコミは、データがある施設にだけ後ろへ足す。
-    # ラベルは dashboard.TABS を正とする（施設ごとに書き分けない）
-    if has_lr or has_rv:
-        _shown = {'listing_rank': has_lr, 'reviews': has_rv}
-        tab_defs += [(k, label) for k, label in _dashboard().TABS if _shown[k]]
+    # 掲載順位・売上ランキング・クチコミは、データがある施設にだけ後ろへ足す。
+    # ラベル・並び順とも dashboard.TABS を正とする（施設ごとに書き分けない）
+    if has_lr or has_rv or has_sr:
+        _shown = {'listing_rank': has_lr, 'reviews': has_rv, 'sales_rank': has_sr}
+        tab_defs += [(k, label) for k, label in _dashboard().TABS if _shown.get(k)]
 
     nav = "".join(
         f'<button class="nav-tab" onclick="showTab(\'{t}\',this)">{l}</button>'
@@ -343,7 +349,8 @@ def html_body(data, has_lr=False, has_rv=False):
     # 既存13タブは中身が空の div で、JS が innerHTML で組み立てる。
     # 掲載順位・クチコミは静的HTMLを持つので、そのタブだけ中身入りにする。
     # 方式が違うだけで競合はしない（どちらも id="tab-<キー>" の div 1枚）
-    static = _dashboard().section_map(has_lr, has_rv) if (has_lr or has_rv) else {}
+    static = (_dashboard().section_map(has_lr, has_rv, has_sr)
+              if (has_lr or has_rv or has_sr) else {})
     sections = "\n".join(
         static.get(t) or f'<div class="section" id="tab-{t}"></div>'
         for t, _ in tab_defs
@@ -372,11 +379,11 @@ def html_body(data, has_lr=False, has_rv=False):
 """
 
 
-def make_js(has_lr=False, has_rv=False):
+def make_js(has_lr=False, has_rv=False, has_sr=False):
     """ダッシュボード描画ロジック（JavaScript文字列を返す）。"""
     # build_v2.py の JS をそのまま埋め込む
     # DATA は呼び出し元で注入済み
-    if not (has_lr or has_rv):
+    if not (has_lr or has_rv or has_sr):
         return JS_CODE
     d = _dashboard()
     # js_prelude() は base（Chart.js の共通オプション）と mk()。
@@ -421,7 +428,7 @@ function pct(a,b){return b?(a/b*100).toFixed(1):'-';}
 const monthTabs=['report','monthly','daily','room','plan','cancel','pref','travel'];
 // 掲載順位・クチコミは自前の月切替を持つので、共通の月バーは出さない。
 // タブを出していない施設でも配列に入れておくだけなら無害
-const noMonthBar=['yoy','room_monthly','pref_monthly','listing_rank','reviews'];
+const noMonthBar=['yoy','room_monthly','pref_monthly','listing_rank','sales_rank','reviews'];
 let tabMonths={};monthTabs.forEach(t=>{tabMonths[t]=DATA.default_month;});
 let curTab='monthly';
 const charts={};
@@ -434,6 +441,7 @@ function drawTab(name){const m=tabMonths[name]||DATA.default_month;switch(name){
 // 掲載順位・クチコミ。タブを出していない施設では描画関数自体が
 // 埋め込まれないので、typeof で確かめてから呼ぶ
 case'listing_rank':if(typeof drawListingRank==='function')drawListingRank();break;
+case'sales_rank':if(typeof drawSalesRank==='function')drawSalesRank();break;
 case'reviews':if(typeof drawReviews==='function')drawReviews();break;}}
 
 let rangeMode=false;let rangeFrom='';let rangeTo='';
