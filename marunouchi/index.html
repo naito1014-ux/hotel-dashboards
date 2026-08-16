@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>松本丸の内ホテル｜予約分析</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+:root{--bg:#faf8f4;--sf:#f5f1ea;--bd:rgba(44,36,24,0.12);--tx:#2c2418;--mu:#9a8e7e;--ac:#8b6914;--up:#2d7a2d;--dn:#c03030;--wn:#b07828;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--tx);font-size:13px;line-height:1.6;}
+a{color:var(--ac);text-decoration:none;}
+.header{background:linear-gradient(135deg,#f5f0e8 0%,#faf8f4 100%);border-bottom:1px solid var(--bd);padding:16px 24px;position:sticky;top:0;z-index:100;}
+.header h1{font-size:17px;font-weight:500;letter-spacing:.5px;}
+.header .sub{color:var(--mu);font-size:11px;margin-top:3px;font-family:'DM Mono',monospace;}
+.top-controls{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.top-controls label{font-size:11px;color:var(--mu);}
+.top-controls select,.top-controls button{background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;}
+.top-controls select:hover,.top-controls button:hover{border-color:var(--ac);}
+.nav{display:flex;gap:2px;padding:8px 24px 0;flex-wrap:wrap;border-bottom:1px solid var(--bd);background:#f5f1ea;position:sticky;top:72px;z-index:99;}
+.nav-tab{background:none;border:none;color:var(--mu);padding:7px 12px;font-size:11.5px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;transition:all .15s;white-space:nowrap;}
+.nav-tab:hover{color:var(--tx);}
+.nav-tab.active{color:#8b6914;border-bottom-color:#8b6914;font-weight:500;}
+.month-bar{display:flex;gap:4px;padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--bd);flex-wrap:wrap;align-items:center;}
+.month-bar .label{font-size:11px;color:var(--mu);margin-right:8px;}
+.month-btn{background:var(--sf);border:1px solid var(--bd);color:var(--mu);padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;}
+.month-btn:hover{border-color:var(--ac);color:var(--tx);}
+.month-btn.active{background:#8b6914;color:#faf8f4;border-color:var(--ac);}
+.container{max-width:1400px;margin:0 auto;padding:16px 24px 60px;}
+.section{display:none;animation:fadeIn .25s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px;}
+.kpi{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:14px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi.blue::before{background:#3366aa;}.kpi.green::before{background:#2d7a2d;}.kpi.orange::before{background:#b07828;}.kpi.red::before{background:#c03030;}
+.kpi .label{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
+.kpi .value{font-size:20px;font-weight:500;font-family:'DM Mono',monospace;}
+.kpi .unit{font-size:11px;color:var(--mu);margin-left:2px;}
+.kpi .py{font-size:10px;color:var(--mu);margin-top:5px;font-family:'DM Mono',monospace;letter-spacing:.2px;}
+.kpi .py .d{margin-left:6px;font-weight:500;}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:14px;}
+.card h3{font-size:13px;font-weight:500;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.card h3 .badge{font-size:10px;background:#8b6914;color:#faf8f4;padding:1px 7px;border-radius:10px;font-weight:400;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--bd);color:var(--mu);font-weight:500;font-size:10.5px;white-space:nowrap;position:sticky;top:0;background:var(--sf);}
+td{padding:5px 8px;border-bottom:1px solid var(--bd);}
+tr:hover td{background:rgba(139,105,20,0.04);}
+.num{text-align:right;font-family:'DM Mono',monospace;font-size:11.5px;}
+.up{color:var(--up);}.dn{color:var(--dn);}
+.chart-wrap{position:relative;height:300px;margin:8px 0;}
+.chart-wrap.tall{height:400px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;}
+.pill-blue{background:rgba(139,105,20,.12);color:#8b6914;}.pill-green{background:rgba(45,122,45,.12);color:#2d7a2d;}
+.pill-red{background:rgba(192,48,48,.12);color:#c03030;}.pill-orange{background:rgba(176,120,40,.12);color:#b07828;}
+.scroll-table{max-height:500px;overflow-y:auto;}
+.scroll-table::-webkit-scrollbar{width:5px;}.scroll-table::-webkit-scrollbar-thumb{background:rgba(44,36,24,.2);border-radius:3px;}
+.bar-bg{height:5px;border-radius:3px;background:var(--bd);overflow:hidden;margin-top:3px;}
+.bar-fill{height:100%;border-radius:3px;}
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+.filter-row label{font-size:11px;color:var(--mu);}
+.filter-row select,.filter-row input,.filter-row button{background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:4px 8px;border-radius:6px;font-size:11px;font-family:inherit;}
+.toggle-btn{background:var(--sf);border:1px solid var(--bd);color:var(--mu);padding:3px 10px;border-radius:6px;font-size:10.5px;cursor:pointer;font-family:inherit;}
+.toggle-btn.active{background:rgba(139,105,20,.12);color:#8b6914;border-color:#8b6914;}
+.no-data{text-align:center;padding:40px;color:var(--mu);font-size:12px;}
+/* ── 月次レポート ── */
+.rp-line{font-size:12.5px;margin-bottom:6px;}
+.rp-line:last-child{margin-bottom:0;}
+.rp-sub{font-size:11px;color:var(--mu);margin:10px 0 6px;font-weight:500;}
+.rp-narr{background:rgba(139,105,20,.06);border-left:3px solid var(--ac);padding:8px 10px;border-radius:0 6px 6px 0;font-size:11.5px;margin-top:10px;}
+.rp-ok{color:var(--mu);font-size:11.5px;padding:6px 0;}
+.rp-factor{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;margin-bottom:6px;font-size:11.5px;}
+.rp-factor .lbl{color:var(--mu);}
+.rp-factor .amt{font-family:'DM Mono',monospace;font-weight:500;}
+.rp-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;}
+.rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:900px){.rp-cols,.rp-metrics{grid-template-columns:1fr;}}
+.rp-chrow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11.5px;}
+.rp-chrow .amt{font-family:'DM Mono',monospace;}
+.rp-day{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11.5px;font-family:'DM Mono',monospace;}
+.rp-day .wd{color:var(--mu);margin-left:4px;}
+.rp-alert{background:rgba(192,48,48,.07);border-left:3px solid var(--dn);padding:8px 10px;border-radius:0 6px 6px 0;font-size:11.5px;margin-bottom:6px;}
+.rp-alert.lv2{background:rgba(176,120,40,.08);border-left-color:var(--wn);}
+.rp-alert.lv1{background:rgba(44,36,24,.04);border-left-color:var(--mu);}
+.rp-lvtag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;margin-right:6px;}
+.rp-lv3{background:var(--dn);color:#faf8f4;}
+.rp-lv2{background:var(--wn);color:#faf8f4;}
+.rp-lv1{background:rgba(44,36,24,.12);color:var(--mu);}
+.rp-issue{padding:7px 0 7px 20px;border-bottom:1px solid var(--bd);font-size:11.5px;position:relative;}
+.rp-issue:before{content:'\25B8';position:absolute;left:4px;color:var(--ac);}
+.rp-note{font-size:10px;color:var(--mu);margin-top:8px;}
+.footer{text-align:center;padding:20px;color:var(--mu);font-size:10px;border-top:1px solid var(--bd);margin-top:20px;}
+@media print{.header,.nav,.month-bar{position:static;}.section{display:block!important;page-break-before:always;}body{background:#fff;}}
+.rv-blk-title{margin:18px 0 8px;font-size:11px;font-weight:600;color:var(--tx);letter-spacing:.04em;border-left:3px solid var(--ac);padding-left:8px;}
+.rv-blk-title:first-of-type{margin-top:8px;}
+#tab-reviews table th{white-space:nowrap;}
+#t-rv-booking{width:auto;}
+#t-rv-booking th,#t-rv-booking td{min-width:58px;}
+#tab-reviews table th[colspan]{text-align:left;padding-left:6px;}
+#tab-reviews table td{white-space:nowrap;text-align:center;}
+.rv-ota-sep{border-left:2px solid var(--bd);}
+.rv-src{display:inline-block;font-size:9px;font-weight:700;line-height:1.4;padding:0 3px;border-radius:3px;border:1px solid;margin-left:3px;}
+.rv-src--manual{color:var(--wn);border-color:var(--wn);background:rgba(180,120,0,0.10);}
+.rv-src--public_page{color:var(--mu);border-color:var(--bd);}
+tr.rv-manual td{background:rgba(180,120,0,0.05);}
+.rv-cmt{border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--sf2);}
+.rv-cmt-meta{font-size:10px;color:var(--mu);margin-bottom:5px;display:flex;gap:10px;flex-wrap:wrap;}
+.rv-cmt-body{font-size:11px;line-height:1.75;}
+.rv-sent{display:flex;gap:6px;padding:1px 0 1px 6px;border-left:2px solid transparent;}
+.rv-sent-mark{flex:0 0 12px;font-weight:700;font-family:'DM Mono',monospace;}
+.rv-sent--good{color:#1b5e20;border-left-color:#2e7d32;}
+.rv-sent--bad{color:#8e1b1b;border-left-color:#c62828;font-weight:600;}
+.rv-sent--neutral{color:var(--tx);}
+.rv-cat{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;border:1px solid;}
+.rv-cat--good{color:#1b5e20;border-color:#2e7d32;background:rgba(46,125,50,0.08);}
+.rv-cat--bad{color:#8e1b1b;border-color:#c62828;background:rgba(198,40,40,0.08);}
+.rv-cat--both{color:#8a6d00;border-color:#a67c00;background:rgba(166,124,0,0.10);}
+.rv-cat--none{color:var(--mu);border-color:var(--bd);}
+.rv-cmt-sec{margin:14px 0 8px;font-size:11px;font-weight:600;color:var(--tx);}
+.sr-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
+/* 枚数が1〜2枚のブロック用。auto-fit のままだと1枚が画面幅いっぱいに
+   伸びて、3枚並ぶブロックとカードの大きさが揃わない */
+.sr-cards--few .sr-card{max-width:380px;}
+.sr-card{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;}
+.sr-card-label{font-size:10px;color:var(--mu);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:7px;}
+.sr-card-value{font-size:21px;font-weight:500;font-family:'DM Mono',monospace;line-height:1;color:var(--tx);}
+.sr-card-unit{font-size:11px;color:var(--mu);margin-left:2px;font-weight:400;}
+.sr-card-delta{font-size:11px;font-family:'DM Mono',monospace;margin-top:7px;color:var(--mu);}
+.sr-card-sub{font-size:10px;color:var(--mu);margin-top:5px;line-height:1.7;}
+.sr-head-scope{font-weight:400;font-size:11px;color:var(--mu);text-transform:none;letter-spacing:0;}
+.sr-sub-title{margin:0 0 10px;font-size:11px;font-weight:600;color:var(--tx);letter-spacing:.04em;border-left:3px solid var(--ac);padding-left:8px;}
+#sr-iy-wrap{margin-bottom:18px;}
+.sr-note{margin-top:14px;font-size:10px;color:var(--mu);line-height:1.8;}
+.sr-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;}
+.sr-legend i{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:5px;}
+</style>
+</head>
+<body>
+<div class="header">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div>
+<h1>松本丸の内ホテル｜予約分析</h1>
+<div class="sub">source: OTA公開ページ（ブラウジング取得） ／ 手間いらず 予約CSV: 未接続 ／ 生成: 2026年08月16日 21:30</div>
+</div>
+<div class="top-controls">
+<button onclick="printAll()">&#x1F5A8; 全ページ印刷</button>
+</div>
+</div>
+</div>
+<div class="nav"><button class="nav-tab" onclick="showTab('listing_rank',this)">掲載順位</button><button class="nav-tab" onclick="showTab('reviews',this)">クチコミ</button></div>
+<div class="month-bar" id="monthBar" style="display:none"></div>
+<div class="container" id="content">
+<div class="section" id="tab-listing_rank">
+  <!-- 人数（大人N名）の切替。一覧表・OTA別グラフ・上位10施設の3つに同時に効く。
+       人数が1種類しかない施設では中身を空にして何も出さない -->
+  <div id="lr-cap-bar"></div>
+  <div class="chart-box">
+    <div class="chart-title">掲載順位 一覧 <div class="metric-tabs" id="lr-year-tabs"></div></div>
+    <div class="table-wrap"><table id="t-listing-rank"></table></div>
+    <div id="lr-cond" style="margin-top:14px;font-size:10px;color:var(--mu);line-height:1.8"></div>
+  </div>
+  <!-- OTAごとの順位推移。1枚につきPC・モバイルの2本だけを描く -->
+  <div id="lr-charts"></div>
+  <div class="chart-box">
+    <div class="chart-title">上位10施設の推移 <div class="metric-tabs" id="lr-top-tabs"></div></div>
+    <div class="table-wrap"><table id="t-listing-top"></table></div>
+    <div id="lr-top-note" style="margin-top:8px;font-size:10px;color:var(--mu);line-height:1.8"></div>
+  </div>
+</div>
+
+<div class="section" id="tab-reviews">
+  <!-- 手作業Excelと同じ3ブロックを縦に並べる。
+       行=年月（選択月を最新とする13ヶ月・上が過去）、列=OTA×軸 -->
+  <div class="chart-box">
+    <div class="chart-title">クチコミ <div class="metric-tabs" id="rv-month-tabs"></div></div>
+
+    <div class="rv-blk-title">① 単月評価</div>
+    <div style="font-size:10px;color:var(--wn);margin:0 0 8px">未取得。投稿月別の平均は公開ページから全件を辿れないため、手間いらずのクチコミ画面（またはOTA管理画面）からの取得待ちです</div>
+    <div class="table-wrap"><table id="t-rv-monthly"></table></div>
+
+    <div class="rv-blk-title">② ユーザー画面（累計）</div>
+    <div class="table-wrap"><table id="t-rv-cum"></table></div>
+
+    <!-- ③は Booking の累計が1ヶ月でもある施設にだけ出す（JS側で display を切る）。
+         データが1件も無いまま9列×13行の空表を出すと「取得に失敗した」と
+         誤読される。掲載順位で fetch_failed を「取得失敗」と明示している
+         設計と食い違うので、無いものは出さない。
+         has_rv / has_lr でタブごと出さないのと同じ考え方 -->
+    <div id="rv-blk-booking">
+      <div class="rv-blk-title">③ Booking.com（10点満点）</div>
+      <div class="table-wrap"><table id="t-rv-booking"></table></div>
+    </div>
+
+    <div id="rv-note" style="margin-top:14px;font-size:10px;color:var(--mu);line-height:1.8"></div>
+  </div>
+
+  <!-- 文単位の分類。選択月を最終月とする12ヶ月の合計 -->
+  <div class="chart-box">
+    <div class="chart-title">言及トピック
+      <div class="metric-tabs" id="rv-top-tabs"></div>
+      <span id="rv-top-head" style="font-weight:400;font-size:11px;color:var(--mu)"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="rv-top-grid">
+      <div>
+        <div class="rv-blk-title" style="border-left-color:#2e7d32">Good TOP10</div>
+        <div class="table-wrap"><table id="t-rv-good"></table></div>
+      </div>
+      <div>
+        <div class="rv-blk-title" style="border-left-color:#c62828">Bad TOP10</div>
+        <div class="table-wrap"><table id="t-rv-bad"></table></div>
+      </div>
+    </div>
+    <div id="rv-top-note" style="margin-top:14px;font-size:10px;color:var(--mu);line-height:1.8"></div>
+  </div>
+
+  <div class="chart-box">
+    <div class="chart-title">コメント
+      <div class="metric-tabs" id="rv-cmt-tabs"></div>
+      <span id="rv-cmt-head" style="font-weight:400;font-size:11px;color:var(--mu)"></span>
+    </div>
+    <div id="rv-comments"></div>
+  </div>
+</div>
+<div class="footer">松本丸の内ホテル様｜予約分析ダッシュボード　掲載順位・クチコミはOTA公開ページから取得。売上・在庫（手間いらず 予約CSV）が入り次第、月次レポート以下のタブを追加します。</div>
+</div>
+
+<script>
+const DATA = {"hotel_name": "松本丸の内ホテル", "cur_year": 2026, "generated_at": "2026年08月16日 21:30", "months": ["2026-08"], "years": [2026], "default_month": "2026-08", "listing_rank": {"months": [], "by_month": {}, "media": [], "capacities": []}, "reviews": {"months": ["2026-08"], "otas": ["rakuten", "jalan"], "axes_by_ota": {"rakuten": ["部屋", "接客・サービス", "ロケーション", "朝食", "夕食", "温泉・お風呂", "設備", "清潔さ"], "jalan": ["部屋", "風呂", "料理(朝食)", "接客・サービス", "清潔感"]}, "by_month": {}, "partial_month": "2026-08", "cumulative": {"2026-08": {"rakuten": {"total": 4.42, "review_count": 1212, "scale": 5, "source": "public_page", "axes": {"部屋": 4.48, "接客・サービス": 4.43, "ロケーション": 4.5, "朝食": 4.4, "夕食": 5.0, "温泉・お風呂": 4.22, "設備": 4.33, "清潔さ": 4.45}}, "jalan": {"total": 4.7, "review_count": 1389, "scale": 5, "source": "public_page", "axes": {"部屋": 4.5, "風呂": 4.3, "料理(朝食)": 4.5, "接客・サービス": 4.4, "清潔感": 4.7}}}}, "comments": [], "sentences": [], "others": []}};
+// Channel grouping
+function groupCh(c){
+  if(c==='一休.com'||c==='楽天トラベル'||c==='じゃらん'||c==='Booking.com')return c;
+  if(c==='予約プロクロス'||c==='自社')return '自社';
+  return 'その他';
+}
+// Physical room count from name (count ・-separated names after ｜)
+function physicalRooms(name){
+  const p=name.split('｜');
+  if(p.length<2)return 1;
+  return p[1].split('・').length;
+}
+// Days in month
+function daysInMonth(ym){
+  const[y,m]=ym.split('-').map(Number);
+  return new Date(y,m,0).getDate();
+}
+const CH_COLORS={'一休.com':'#d4870a','楽天トラベル':'#ef4444','じゃらん':'#22c55e','るるぶトラベル':'#3b82f6','予約プロクロス':'#a78bfa','Booking.com':'#06b6d4','Relux':'#ec4899','ツアービルダー':'#f97316','JALパック':'#14b8a6','e宿':'#8b5cf6','自社':'#a78bfa'};
+function chColor(c){return CH_COLORS[c]||'#64748b';}
+function fmt(n){if(n==null)return'-';return Number(n).toLocaleString();}
+function fmtY(n){return'\u00a5'+fmt(n);}
+function pct(a,b){return b?(a/b*100).toFixed(1):'-';}
+const monthTabs=[];   // CSV由来の月切替タブは今回出さない
+// 掲載順位・クチコミは自前の月切替を持つので、共通の月バーは出さない。
+// タブを出していない施設でも配列に入れておくだけなら無害
+const noMonthBar=['yoy','room_monthly','pref_monthly','listing_rank','sales_rank','reviews'];
+let tabMonths={};monthTabs.forEach(t=>{tabMonths[t]=DATA.default_month;});
+let curTab='listing_rank';
+const charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function makeChart(id,cfg){destroyChart(id);const c=document.getElementById(id);if(!c)return null;charts[id]=new Chart(c,cfg);return charts[id];}
+function showTab(name,el){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');if(el)el.classList.add('active');curTab=name;document.getElementById('monthBar').style.display=noMonthBar.includes(name)?'none':'';const tm=tabMonths[name]||DATA.default_month;document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===tm));drawTab(name);}
+function switchAllTabs(m){monthTabs.forEach(t=>{tabMonths[t]=m;});document.querySelectorAll('.month-btn').forEach(x=>x.classList.toggle('active',x.textContent===m));const sel=document.getElementById('global-month-select');if(sel)sel.value=m;drawTab(curTab);}
+function printAll(){document.querySelectorAll('.section').forEach(s=>s.classList.add('active'));setTimeout(()=>{window.print();},300);}
+function drawTab(name){switch(name){
+case'listing_rank':if(typeof drawListingRank==='function')drawListingRank();break;
+case'reviews':if(typeof drawReviews==='function')drawReviews();break;}}
+
+const base = {
+  plugins: {
+    legend: { display: false },
+    tooltip: { backgroundColor:'#1e2330', borderColor:'rgba(44,36,24,0.08)', borderWidth:1, titleColor:'#e8eaf0', bodyColor:'#7a7f8e', padding:10 }
+  },
+  scales: {
+    x: { grid:{ color:'rgba(44,36,24,0.04)' }, ticks:{ color:'#7a7f8e', font:{ family:'DM Mono', size:10 } } },
+    y: { grid:{ color:'rgba(44,36,24,0.04)' }, ticks:{ color:'#7a7f8e', font:{ family:'DM Mono', size:10 } } }
+  }
+};
+
+function mk(id, cfg) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const el = document.getElementById(id);
+  if (!el) return;
+  charts[id] = new Chart(el, cfg);
+}
+// ── 掲載順位 ──
+// 順位は「小さいほど良い」指標なので、グラフはY軸を反転して1位を上に置く。
+// 反転しないと「線が下がる＝悪化」に見えてしまい、意味が逆に読まれる。
+//
+// 過去（手作業・上諏訪温泉）と現在（自動・諏訪湖エリア）は取得条件が違う。
+// 無区別に1本の線でつなぐと、境目の段差を「順位が急変した」と誤読するので、
+// 参考値の区間は細い点線＋淡色にし、境界に縦線を引く。
+const LR_OTA_NAME  = { jalan:'じゃらん', rakuten:'楽天', ikyu:'一休', booking:'Booking.com', yahoo:'Yahoo!トラベル' };
+const LR_OTA_COLOR = { jalan:'#FF9800', rakuten:'#BF3131', ikyu:'#2196F3', booking:'#003580', yahoo:'#7B0099' };
+const LR_STATUS_LABEL = {
+  ok:'取得', fetch_failed:'取得失敗', out_of_range:'圏外（下位）', not_listed:'未掲載'
+};
+let lrPickedMedium = null;    // 上位10施設の表で見る媒体（'ota|device'）
+let lrYear = null;            // 一覧表とOTA別グラフの表示年
+let lrCap = null;             // 表示中の人数（大人N名）。3つの表・グラフに共通で効く
+
+function lrData() { return DATA.listing_rank || { months:[], by_month:{}, media:[], capacities:[] }; }
+function lrDoc(month) { return (lrData().by_month || {})[month] || {}; }
+function lrRecords(month) { return lrDoc(month).records || []; }
+function lrMedia() { return lrData().media || []; }
+function lrCaps() { return lrData().capacities || []; }
+function lrDevLabel(d) { return d === 'pc' ? 'PC' : 'モバイル'; }
+// レコードは (ota, device, capacity) で1件に定まる。人数を渡さずに引くと
+// 1名の結果が2名の欄に出るなど、静かに別物を見せることになるので必須にする。
+// 該当が無ければ null。**他の人数で代用しない**（1名を選んで1名が無いなら、
+// 2名を見せるのではなく欠測として扱う）
+function lrFind(month, ota, device, capacity) {
+  if (capacity == null) return null;
+  const hit = lrRecords(month).find(function(x){
+    return x.ota === ota && x.device === device && x.capacity === capacity; });
+  return hit || null;
+}
+// 参考値＝手作業の記録。取得条件が自動取得と違う
+function lrIsRef(month) {
+  const d = lrDoc(month);
+  if (d.source === 'manual' || d.reference === true) return true;
+  // 印がレコード側にあるExcel由来の形にも対応する
+  return (d.records || []).some(function(r){ return r.reference === true; });
+}
+// 参考値の説明（conditions_note）。文書レベル・レコード側のどちらでも拾う
+function lrRefNote(month) {
+  const d = lrDoc(month);
+  if (d.conditions_note) return d.conditions_note;
+  const r = (d.records || []).find(function(x){ return x.conditions_note; });
+  return r ? r.conditions_note : '';
+}
+// データがある年だけを返す（無い年のボタンは出さない。押しても空なので）
+function lrYears() {
+  const ys = [];
+  (lrData().months || []).forEach(function(m) {
+    const y = m.slice(0, 4);
+    if (ys.indexOf(y) < 0) ys.push(y);
+  });
+  return ys.sort();
+}
+// 一覧表・OTA別グラフが対象にする月（選んだ年の分だけ）
+function lrYearMonths() {
+  return (lrData().months || []).filter(function(m) { return m.slice(0, 4) === lrYear; });
+}
+// 表示中の月の並びの中で、過去（参考値）と自動取得の境目にあたる位置。
+// 年で切り出すと全体の位置とずれるので、渡された配列に対して数え直す
+function lrBoundaryIdx(monthsArr) {
+  for (let i = 1; i < monthsArr.length; i++) {
+    if (lrIsRef(monthsArr[i - 1]) && !lrIsRef(monthsArr[i])) return i;
+  }
+  return -1;
+}
+function lrTotal(r) {
+  if (r.area_total != null) return r.area_total;
+  if (r.top_listings && r.top_listings.length) return r.top_listings.length;
+  return null;
+}
+function lrPos(r) {
+  if (r.rank == null) return LR_STATUS_LABEL[r.status] || r.status;
+  const t = lrTotal(r);
+  return t ? (t + '軒中' + r.rank + '位') : (r.rank + '位');
+}
+function lrTint(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',0.35)';
+}
+// その月の自社の施設ID（上位一覧の中で、自社順位と一致する行）。
+// top_listings はレコードの中にあるので、人数まで指定して引く
+function lrOwnId(month, ota, device, capacity) {
+  const r = lrFind(month, ota, device, capacity);
+  if (!r || r.rank == null || !r.top_listings) return null;
+  const hit = r.top_listings.find(function(t){ return t.rank === r.rank; });
+  return hit ? (hit.listing_id || hit.facility) : null;
+}
+
+// 境界（自動取得開始）を示す縦線。表示中の月配列を渡して作る
+function lrBoundaryPlugin(monthsArr) { return {
+  id: 'lrBoundary',
+  afterDatasetsDraw: function(chart) {
+    const idx = lrBoundaryIdx(monthsArr);
+    if (idx <= 0) return;                       // 境目が無ければ引かない
+    const x = chart.scales.x, ctx = chart.ctx;
+    const px = (x.getPixelForValue(idx) + x.getPixelForValue(idx - 1)) / 2;
+    ctx.save();
+    ctx.strokeStyle = '#9a8e7e'; ctx.lineWidth = 1; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(px, chart.chartArea.top); ctx.lineTo(px, chart.chartArea.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#9a8e7e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('自動取得開始・エリア変更', px + 4, chart.chartArea.top + 12);
+    ctx.restore();
+  }
+}; }
+
+// ======================= クチコミ =======================
+// 手作業Excelと同じ構造で出す。行=年月（13ヶ月・上が過去）、列=OTA×軸。
+// ブロックは3つ：① 単月評価 ② ユーザー画面（累計） ③ Booking.com（10点満点）。
+//
+// ■ 軸名の寄せ方
+//   左が実データの軸名（各OTAの画面表記そのまま）、右がExcelの列名。
+//   **生データは書き換えない**。表示のときだけこの表で読み替える。
+//   OTAを足すときはここに1ブロック足せば列が増える。
+const RV_COLS = {
+  // 各行 [ 生の軸名の候補(配列), 表示する列名 ]。
+  //
+  // 候補が複数あるのは、同じ軸が資料によって違う名前で書かれているため:
+  //   じゃらん  累計が全角「料理（朝食）」／個別が半角「料理(朝食)」／Excelは「朝食」
+  //   楽天      2025-11 に軸が入れ替わった（Excel旧「立地」→現「ロケーション」）
+  // 生データは寄せず、ここで全部受ける。
+  //
+  // ■ Excel専用の列を消さない
+  //   楽天の旧軸「食事」は現行の朝食/夕食のどちらにも対応しない。
+  //   どちらかに寄せると値を作ってしまうので、専用の列を立てて残す。
+  jalan: { label:'じゃらん', axes:[
+    [['部屋'],'部屋'], [['風呂'],'風呂'],
+    [['料理(朝食)','料理（朝食）','朝食'],'朝食'],
+    [['料理(夕食)','料理（夕食）','夕食'],'夕食'],
+    [['接客・サービス','接客'],'接客'], [['清潔感'],'清潔感'] ] },
+  rakuten: { label:'楽天', axes:[
+    [['部屋'],'部屋'], [['接客・サービス','サービス'],'サービス'],
+    [['ロケーション','立地'],'ロケーション'],
+    [['朝食'],'朝食'], [['夕食'],'夕食'], [['温泉・お風呂','風呂'],'風呂'],
+    [['設備','設アメ'],'設備'], [['清潔さ','清潔感'],'清潔感'],
+    [['食事'],'食事※'] ] },
+  yahoo: { label:'Yahoo', axes:[
+    [['客室・アメニティ'],'客室アメ'], [['施設・設備'],'設備'], [['接客・サービス'],'接客'],
+    [['お食事'],'食事'], [['温泉・お風呂'],'風呂'], [['満足度'],'満足度'] ] },
+  // ■ 2026-08-15 追加。一休の定義が無く、①②の列が丸ごと出ていなかった
+  //   rvShownOtas() は RV_COLS のキーをデータ側のOTAで絞るので、定義が
+  //   無いOTAは列がゼロになる。エラーは出ず「年月」1列だけの空表になるため
+  //   気づきにくい。神等楽来（一休のみ）で表面化したが、朱白でも
+  //   一休の列が出ていなかった（松江は一休が未掲載で表面化しなかった）。
+  //   軸名は Yahoo と完全に同じ。一休と Yahoo!トラベルは同じ基盤で、
+  //   画面表記も揃っている（2026-08-15 に神等楽来・朱白の実データで確認）。
+  //   在庫もクチコミも別物なので、キーは別に持つ（contracts.yml と同じ方針）
+  ikyu: { label:'一休', axes:[
+    [['客室・アメニティ'],'客室アメ'], [['施設・設備'],'設備'], [['接客・サービス'],'接客'],
+    [['お食事'],'食事'], [['温泉・お風呂'],'風呂'], [['満足度'],'満足度'] ] },
+  // Excelの「一休/Yahooトラベル」列。**2社が1列にまとまっており分離できない**。
+  // 自動取得の Yahoo とは母数も期間も違うので、同じ列に混ぜず別系列で置く。
+  // ①と②で軸の並びが違う（①: 立地/食事/風呂/サービス/客室アメ、
+  // ②: 客室アメ/設備/接客/食事/風呂/満足度）ので、両方の軸を列に用意する
+  ikyu_yahoo: { label:'一休/Yahoo（手作業）', axes:[
+    [['客室アメ'],'客室アメ'], [['設備'],'設備'], [['接客'],'接客'],
+    [['食事'],'食事'], [['風呂'],'風呂'], [['満足度'],'満足度'],
+    [['立地'],'立地'], [['サービス'],'サービス'] ] },
+};
+
+// 出所の見分け。手作業Excelは取得条件が自動取得と違うので、必ず印を出す
+const RV_SRC = {
+  manual:      {mark:'手', label:'手作業Excel',
+                note:'月次会議資料からの転記。取得条件の記録が無い参考値'},
+  public_page: {mark:'自', label:'自動取得',
+                note:'公開ページから収集'},
+};
+function rvSrcBadge(src) {
+  const s = RV_SRC[src];
+  if (!s) return '';
+  return '<span class="rv-src rv-src--' + src + '" title="' + s.note + '">' + s.mark + '</span>';
+}
+
+// Booking.com は10点満点で軸も違う。他ブロックと同じ表に混ぜると
+// 4.5 と 8.6 が同じ列に並んで読み違える。必ず分けて置く
+// [表示名, 元データの軸名の候補]。手作業Excel（〜2026-07）と自動取得（2026-08〜）で
+// 軸名の表記が違う（Excel「施設」「WIFI」／画面「施設・設備」「WiFi（無料）」）。
+// 別名で拾わないと、境目の月から列が空になって「評価が消えた」ように見える。
+// 表示名は画面表記に寄せる（軸名は画面のまま残すのが全体の方針）
+const RV_BOOKING_AXES = [
+  ['総合',        []],
+  ['快適さ',      ['快適さ']],
+  ['ロケーション', ['ロケーション']],
+  ['施設・設備',   ['施設・設備', '施設']],
+  ['スタッフ',    ['スタッフ']],
+  ['お得感',      ['お得感']],
+  ['清潔さ',      ['清潔さ']],
+  ['WiFi（無料）', ['WiFi（無料）', 'WIFI', 'WiFi']],
+];
+
+const RV_MONTHS_SHOWN = 13;      // Excelと同じ13ヶ月分を縦に並べる
+// TOP10の集計期間の選択肢。選択月を最終月として遡る。
+// 単月だと1〜2件で順位が入れ替わって読めないので、既定は12ヶ月
+const RV_TOPIC_SPANS = [1, 3, 6, 12];
+let rvTopicSpan = 12;
+let rvMonth = null;
+
+// コメント欄の絞り込みと展開。
+// 'all' は全OTA。縦に長くなるので、既定では **OTAごとに** RV_CMT_INIT 件だけ出す。
+// カテゴリ（Good/Bad/…）ではなくOTA単位で切るのは、全OTA表示のときに
+// 1社だけが大量に出て他社が埋もれるのを防ぐため
+const RV_CMT_INIT = 10;
+let rvCmtOta = 'all';
+let rvCmtOpen = false;
+
+// クチコミ本文は投稿者が書いた文字列。innerHTML に入れる前に必ず通す
+// （「<」で始まる本文が来ただけで、以降のカードが描画されなくなる）
+function esc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// コメントの区分。クチコミ単位で、含まれる文の判定から決める。
+//
+// ■ 色だけに頼らない
+//   Good/Bad を色でしか区別できないと、色覚特性のある人には読めなくなる。
+//   文の先頭に記号（＋／−）を必ず付け、カードにも区分ラベルを併記し、
+//   左の縦罫と太さでも差を付ける。印刷時は色が飛ぶので黒に落とす。
+//
+// ■ neutral だけのクチコミは Good/Bad に寄せない
+//   規則版では neutral が4割を超える。「7/15に1泊2日で宿泊しました」のような
+//   事実だけの文をGoodに寄せると、良い評価を捏造することになる。
+//   別区分にして末尾へ置く。
+const RV_CATS = [
+  {key:'good', label:'Good',      mark:'＋',  cls:'rv-cat--good',
+   note:'Good文のみ'},
+  {key:'bad',  label:'Bad',       mark:'−',   cls:'rv-cat--bad',
+   note:'Bad文のみ'},
+  {key:'both', label:'Good&Bad',  mark:'＋−', cls:'rv-cat--both',
+   note:'Good文とBad文の両方を含む'},
+  {key:'none', label:'判定なし',   mark:'・',  cls:'rv-cat--none',
+   note:'良し悪しの手がかりが無い文だけ（集計から外している分）'},
+];
+
+// クチコミ1件の区分を決める
+function rvCommentCat(c) {
+  const ss = c.sentences || [];
+  const g = ss.some(function(x) { return x.polarity === 'good'; });
+  const b = ss.some(function(x) { return x.polarity === 'bad'; });
+  if (g && b) return 'both';
+  if (g) return 'good';
+  if (b) return 'bad';
+  return 'none';
+}
+
+// 本文を文ごとに色分けして描く。記号と左罫でも区別できるようにする
+function rvBodyHtml(c) {
+  const ss = c.sentences || [];
+  if (!ss.length) {
+    // 分類前のレコード。本文をそのまま出す（色も記号も付けない）
+    return '<div class="rv-sent rv-sent--neutral">'
+         + '<span class="rv-sent-mark">・</span><span>' + esc(c.body || '') + '</span></div>';
+  }
+  return ss.map(function(x) {
+    const pol = x.polarity === 'good' ? 'good' : (x.polarity === 'bad' ? 'bad' : 'neutral');
+    const mark = pol === 'good' ? '＋' : (pol === 'bad' ? '−' : '・');
+    const title = (x.topic || '') + ' / ' + pol;
+    return '<div class="rv-sent rv-sent--' + pol + '" title="' + esc(title) + '">'
+         + '<span class="rv-sent-mark" aria-hidden="true">' + mark + '</span>'
+         + '<span><span class="sr-only">' + pol + '：</span>' + esc(x.text || '') + '</span>'
+         + '</div>';
+  }).join('');
+}
+
+function rvData() {
+  return DATA.reviews || { months:[], otas:[], axes_by_ota:{}, by_month:{},
+                           partial_month:null, cumulative:{}, comments:{},
+                           sentences:{}, others:{} };
+}
+function rvCell(v) {
+  // 欠測は空欄。0 を出さない（0点が付いたのと区別がつかなくなる）
+  return (v === null || v === undefined) ? '' : v.toFixed(2);
+}
+// 生の軸名の候補（表記ゆれ）から、データにある方を拾う
+function rvPick(axes, names) {
+  if (!axes) return undefined;
+  for (let i = 0; i < names.length; i++) if (axes[names[i]] !== undefined) return axes[names[i]];
+  return undefined;
+}
+function rvPickPlain(axes, names) {
+  if (!axes) return undefined;
+  for (let i = 0; i < names.length; i++) if (axes[names[i]] !== undefined) return axes[names[i]];
+  return undefined;
+}
+function rvN(n, count) {
+  // 有効件数がその月の件数より少ないときだけ添える。
+  // 全件に点が付いていれば n を出しても情報が増えない
+  if (n == null || count == null || n >= count) return '';
+  return '<span style="font-size:9px;color:var(--wn)"> n=' + n + '</span>';
+}
+// 選択月を最新とする13ヶ月を、古い順に返す
+function rvRowMonths(latest) {
+  if (!latest) return [];
+  const y = Number(latest.slice(0, 4)), m = Number(latest.slice(5, 7));
+  const out = [];
+  for (let i = RV_MONTHS_SHOWN - 1; i >= 0; i--) {
+    const t = y * 12 + (m - 1) - i;
+    out.push(String(Math.floor(t / 12)).padStart(4, '0') + '-'
+             + String(t % 12 + 1).padStart(2, '0'));
+  }
+  return out;
+}
+// 表示するOTA（RV_COLS の順。config にあるものだけ）
+function rvShownOtas() {
+  const have = rvData().otas || [];
+  return Object.keys(RV_COLS).filter(function(o) { return have.indexOf(o) >= 0; });
+}
+// OTA×軸の2段ヘッダ。先頭列は必ず「件数」「総合」
+function rvHeader(otas, extraFirst) {
+  let h = '<tr><th rowspan="2" style="text-align:left">年月</th>';
+  otas.forEach(function(o, i) {
+    const n = RV_COLS[o].axes.length + 2;      // 件数 + 総合 + 軸
+    h += '<th colspan="' + n + '" class="' + (i ? 'rv-ota-sep' : '')
+       + '" style="color:' + (LR_OTA_COLOR[o] || 'var(--mu)') + '">'
+       + RV_COLS[o].label + '</th>';
+  });
+  h += '</tr><tr>';
+  otas.forEach(function(o, i) {
+    h += '<th class="' + (i ? 'rv-ota-sep' : '') + '" style="font-size:10px">件数</th>';
+    h += '<th style="font-size:10px">総合</th>';
+    RV_COLS[o].axes.forEach(function(pair) {
+      h += '<th style="font-size:10px;font-weight:400">' + pair[1] + '</th>';
+    });
+  });
+  return h + '</tr>';
+}
+
+function drawReviews() {
+  const RV = rvData();
+  const tblM = document.getElementById('t-rv-monthly');
+  if (!tblM) return;                     // クチコミタブ自体を出していない施設
+
+  const months = RV.months || [];
+  if (months.indexOf(rvMonth) < 0) rvMonth = months.length ? months[months.length - 1] : null;
+
+  const tabs = document.getElementById('rv-month-tabs');
+  tabs.innerHTML = months.map(function(m) {
+    return '<button class="metric-btn' + (rvMonth === m ? ' active' : '')
+      + '" data-rvmonth="' + m + '">' + m
+      + (RV.partial_month === m ? '<span style="font-size:9px"> 途中</span>' : '')
+      + '</button>'; }).join('');
+  tabs.querySelectorAll('[data-rvmonth]').forEach(function(b) {
+    b.onclick = function() { rvMonth = this.dataset.rvmonth; drawReviews(); };
+  });
+
+  const otas = rvShownOtas();
+  const rows = rvRowMonths(rvMonth);
+
+  // ── ブロック① 単月評価 ──
+  let h = rvHeader(otas);
+  rows.forEach(function(m) {
+    const cur = (RV.by_month || {})[m] || {};
+    const isSel = (m === rvMonth);
+    h += '<tr' + (isSel ? ' style="background:rgba(139,105,20,0.10)"' : '') + '>'
+       + '<td style="text-align:left;white-space:nowrap">' + m
+       + (RV.partial_month === m ? '<span style="font-size:9px;color:var(--wn)"> 途中</span>' : '')
+       + '</td>';
+    otas.forEach(function(o, i) {
+      const d = cur[o];
+      const sep = i ? ' class="rv-ota-sep"' : '';
+      h += '<td' + sep + '>' + (d ? (d.count == null ? '' : d.count) + rvSrcBadge(d.source) : '') + '</td>';
+      h += '<td style="font-weight:600">' + (d ? rvCell(d.total) + rvN(d.total_n, d.count) : '') + '</td>';
+      RV_COLS[o].axes.forEach(function(pair) {
+        const a = d ? rvPick(d.axes, pair[0]) : undefined;
+        h += '<td>' + (a ? rvCell(a.v) + rvN(a.n, d.count) : '') + '</td>';
+      });
+    });
+    h += '</tr>';
+  });
+  tblM.innerHTML = h;
+
+  // ── ブロック② ユーザー画面（累計） ──
+  // 画面に出ているのは総合だけで、軸別の累計は一覧ページに無い。
+  // 列は①と揃えたまま、軸の欄は空で置く（列がずれると読み比べられない）
+  let c = rvHeader(otas);
+  rows.forEach(function(m) {
+    const cum = (RV.cumulative || {})[m] || {};
+    const isSel = (m === rvMonth);
+    c += '<tr' + (isSel ? ' style="background:rgba(139,105,20,0.10)"' : '') + '>'
+       + '<td style="text-align:left;white-space:nowrap">' + m + '</td>';
+    otas.forEach(function(o, i) {
+      const v = cum[o];
+      c += '<td' + (i ? ' class="rv-ota-sep"' : '') + '>'
+         + (v ? (v.review_count != null ? v.review_count.toLocaleString() : '')
+                + rvSrcBadge(v.source) : '') + '</td>';
+      c += '<td style="font-weight:600">' + rvCell(v ? v.total : null) + '</td>';
+      RV_COLS[o].axes.forEach(function(pair) {
+        const x = v ? rvPickPlain(v.axes, pair[0]) : undefined;
+        c += '<td>' + rvCell(x === undefined ? null : x) + '</td>';
+      });
+    });
+    c += '</tr>';
+  });
+  document.getElementById('t-rv-cum').innerHTML = c;
+
+  // ── ブロック③ Booking.com（10点満点）──
+  // Booking の累計が1ヶ月も無ければブロックごと隠す。空表は「取得に失敗した」と
+  // 誤読されるため。判定は「表示中の13ヶ月」ではなく **全期間** で見る。
+  // 表示月を動かすたびにブロックが出たり消えたりすると、消えたのが
+  // 「データが無い月」なのか「そもそも取っていない施設」なのか区別できない
+  const rvHasBooking = Object.keys(RV.cumulative || {})
+    .some(function(m) { return (RV.cumulative[m] || {}).booking; });
+  const rvBkBlock = document.getElementById('rv-blk-booking');
+  if (rvBkBlock) rvBkBlock.style.display = rvHasBooking ? '' : 'none';
+
+  let b = '<tr><th style="text-align:left">年月</th>';
+  RV_BOOKING_AXES.forEach(function(a) {
+    b += '<th style="font-size:10px;font-weight:400">' + a[0] + '</th>'; });
+  b += '<th style="font-size:10px;font-weight:400">件数</th></tr>';
+  rows.forEach(function(m) {
+    // Booking も review_summary に入っている（scale=10）
+    const v = ((RV.cumulative || {})[m] || {}).booking;
+    b += '<tr' + (m === rvMonth ? ' style="background:rgba(139,105,20,0.10)"' : '')
+       + (v && v.source === 'manual' ? ' class="rv-manual"' : '') + '>'
+       + '<td style="text-align:left;white-space:nowrap">' + m + rvSrcBadge(v && v.source) + '</td>';
+    RV_BOOKING_AXES.forEach(function(a) {
+      const x = a[0] === '総合' ? (v ? v.total : null)
+                                : (v ? rvPickPlain(v.axes, a[1]) : undefined);
+      b += '<td' + (a[0] === '総合' ? ' style="font-weight:600"' : '') + '>'
+         + (x === null || x === undefined ? '' : Number(x).toFixed(1)) + '</td>';
+    });
+    // 件数は自動取得でしか取れない（Excelの③には件数の列が無い）。
+    // 空欄は「0件」ではなく「その月は記録が無い」の意
+    b += '<td>' + (v && v.review_count != null
+                   ? Number(v.review_count).toLocaleString() : '') + '</td>';
+    b += '</tr>';
+  });
+  document.getElementById('t-rv-booking').innerHTML = b;
+
+  // ── 注記 ──
+  document.getElementById('rv-note').innerHTML =
+    '<div><strong style="color:var(--tx)">①</strong> その月に投稿されたクチコミの単純平均。'
+    + '点が付いていない軸（画面の「-」）は母数から外し、'
+    + '<span style="color:var(--wn)">n=</span> はその軸に点が付いた件数（月の件数より少ないときだけ表示）</div>'
+    + '<div><strong style="color:var(--tx)">②</strong> 取得日時点でユーザー画面に出ている累計（全期間）。'
+    + '件数はOTAが表示している累計クチコミ数で、①の月次件数とも一覧から辿れる件数とも一致しません</div>'
+    // ③の注記も、ブロックを隠したときは一緒に消す。表が無いのに
+    // 「③は10点満点で…」だけ残ると、読み手は無い表を探すことになる
+    + (rvHasBooking
+       ? '<div><strong style="color:var(--tx)">③</strong> Booking.com は<strong>10点満点</strong>で軸も違うため別表。'
+         + '①②とは尺度が違うので数字を並べて比べないこと。'
+         + '2026-08 から施設ページの累計を自動取得しています'
+         + '<span style="color:var(--wn)">（個別クチコミはモーダルの中にあり自動では開けないため、'
+         + '③には単月の平均もGood/Badも出ません）</span></div>'
+       : '')
+    + '<div style="margin-top:6px"><strong style="color:var(--tx)">出所</strong>：'
+    + rvSrcBadge('manual') + ' 手作業Excel（月次会議資料からの転記。取得条件の記録が無い参考値）'
+    + '　' + rvSrcBadge('public_page') + ' 自動取得（公開ページから収集）'
+    + '<span style="color:var(--wn)">　'
+    + '同じ月に両方あるときは自動取得を採用しています。'
+    + '出所が変わる境目をまたいだ比較はできません（母数も取得条件も違います）</span></div>'
+    + '<div><strong style="color:var(--tx)">一休/Yahoo（手作業）</strong>は、Excelで'
+    + '一休とYahooが1列にまとまっており分離できない列です。'
+    + '<strong>自動取得のYahooとは別系列</strong>なので、同じ列に混ぜていません</div>'
+    + '<div>楽天の「食事※」はExcelの旧軸です。現行の朝食/夕食のどちらにも'
+    + '対応しないため、寄せずに専用の列にしています</div>'
+    + '<div style="margin-top:4px">列名はExcelに合わせています。'
+    + '<strong>OTAごとに設問が違うため、同じ列名でも横並びで比較しないこと</strong>'
+    + '（じゃらん「風呂」と楽天「温泉・お風呂」は別の設問）</div>'
+    + (RV.partial_month
+        ? '<div style="color:var(--wn)">※ ' + RV.partial_month
+          + ' は実行日までの途中経過です。次回の取得で確定します</div>' : '')
+    // 表示は RV_COLS の対応表を通すので、OTA側が軸名を変えると
+    // その列が黙って消える。取れているのに出していない軸は必ず知らせる
+    + (function() {
+        const miss = [];
+        otas.forEach(function(o) {
+          const known = []; RV_COLS[o].axes.forEach(function(p) { p[0].forEach(function(x){ known.push(x); }); });
+          (RV.axes_by_ota[o] || []).forEach(function(name) {
+            if (known.indexOf(name) < 0) miss.push((RV_COLS[o].label) + '「' + name + '」');
+          });
+        });
+        return miss.length
+          ? '<div style="color:var(--wn)">※ 対応表に無い軸があり、表に出していません: '
+            + miss.join(' / ') + '（RV_COLS に追加してください）</div>'
+          : '';
+      })();
+
+  // ── 言及トピック（Good TOP10 / Bad TOP10）──
+  // 選択月を最終月として、選んだ期間だけ遡って合計する。
+  // 月ボタンとは独立に切り替わる（月を変えても期間は保つ）
+  const spanTabs = document.getElementById('rv-top-tabs');
+  spanTabs.innerHTML = RV_TOPIC_SPANS.map(function(n) {
+    return '<button class="metric-btn' + (rvTopicSpan === n ? ' active' : '')
+      + '" data-rvspan="' + n + '">' + n + 'ヶ月</button>'; }).join('');
+  spanTabs.querySelectorAll('[data-rvspan]').forEach(function(b) {
+    b.onclick = function() { rvTopicSpan = Number(this.dataset.rvspan); drawReviews(); };
+  });
+
+  const topWin = rvRowMonths(rvMonth).slice(-rvTopicSpan);
+  const agg = {};
+  let nGood = 0, nBad = 0, nNeutral = 0, nOther = 0, nOtherNeutral = 0;
+  topWin.forEach(function(m) {
+    const st = (RV.sentences || {})[m] || {};
+    Object.keys(st).forEach(function(topic) {
+      const v = st[topic];
+      const a = agg[topic] || (agg[topic] = {good:0, bad:0, neutral:0});
+      a.good += v.good || 0; a.bad += v.bad || 0; a.neutral += v.neutral || 0;
+      nGood += v.good || 0; nBad += v.bad || 0; nNeutral += v.neutral || 0;
+      if (topic === 'その他') {
+        nOther += (v.good||0) + (v.bad||0) + (v.neutral||0);
+        nOtherNeutral += v.neutral || 0;
+      }
+    });
+  });
+
+  // 「その他」は分類できなかった文なので、順位には混ぜない（別途件数で出す）
+  function rankTable(key) {
+    const rows = Object.keys(agg)
+      .filter(function(t) { return t !== 'その他' && agg[t][key] > 0; })
+      .sort(function(a, b) { return agg[b][key] - agg[a][key]; })
+      .slice(0, 10);
+    if (!rows.length) return '<tr><td class="empty-msg">該当なし</td></tr>';
+    const max = agg[rows[0]][key];
+    let h = '<tr><th style="width:28px">#</th><th style="text-align:left">トピック</th>'
+          + '<th style="width:56px">件数</th><th></th></tr>';
+    rows.forEach(function(t, i) {
+      const n = agg[t][key];
+      const col = key === 'good' ? '#2e7d32' : '#c62828';
+      h += '<tr><td style="color:var(--mu)">' + (i + 1) + '</td>'
+         + '<td style="text-align:left;white-space:nowrap">' + t + '</td>'
+         + '<td style="font-weight:600">' + n + '</td>'
+         + '<td style="width:100%"><div style="background:' + col
+         + ';height:8px;border-radius:4px;width:' + (n / max * 100) + '%"></div></td></tr>';
+    });
+    return h;
+  }
+  document.getElementById('t-rv-good').innerHTML = rankTable('good');
+  document.getElementById('t-rv-bad').innerHTML = rankTable('bad');
+
+  // 期間に含まれる月のうち、実際にデータがある月。
+  // 12ヶ月を選んでも収集が2ヶ月分しか無ければ「12ヶ月分」ではない。
+  // そこを黙っていると、少ない母数を長期の傾向として読んでしまう
+  const withData = topWin.filter(function(m) {
+    const st = (RV.sentences || {})[m];
+    return st && Object.keys(st).length; });
+
+  const total = nGood + nBad + nNeutral;
+  document.getElementById('rv-top-head').textContent =
+    topWin.length
+      ? '（' + topWin[0] + ' 〜 ' + topWin[topWin.length - 1] + '　' + topWin.length + 'ヶ月）'
+      : '';
+  document.getElementById('rv-top-note').innerHTML = total
+    ? '<div><strong style="color:var(--tx)">集計範囲</strong>：'
+      + topWin[0] + ' 〜 ' + topWin[topWin.length - 1] + '（' + topWin.length + 'ヶ月）'
+      + (withData.length < topWin.length
+          ? '<span style="color:var(--wn)"> ／ このうちデータがあるのは ' + withData.length
+            + 'ヶ月（' + withData.join(', ') + '）。'
+            + '残り ' + (topWin.length - withData.length) + 'ヶ月は未収集で、件数に入っていません</span>'
+          : '')
+      + '</div>'
+      + '<div>クチコミを文に分けて、文ごとにトピックとGood/Badを判定した件数です'
+      + '（1件のクチコミが複数のトピックに入ります）</div>'
+      + '<div>判定の内訳： good ' + nGood + '件 / bad ' + nBad + '件 / '
+      + '<strong style="color:var(--wn)">neutral ' + nNeutral + '件</strong>'
+      + '（良し悪しの手がかりが無い文。集計から外しています）</div>'
+      + '<div><strong style="color:var(--wn)">「その他」' + nOther + '件</strong>'
+      + '（どのトピックにも当たらなかった文。うち neutral ' + nOtherNeutral + '件）。'
+      + '順位には入れていません。ここが増えたらトピックの語を見直してください</div>'
+      + '<div style="margin-top:4px">判定はキーワード規則です。'
+      + '「もう宿泊することはない」のように手がかりの無い否定は neutral に落ちるため、'
+      + '<strong>bad は実際より少なく出ます</strong></div>'
+    : '<div>文単位の分類がまだありません（classify_reviews.py を実行してください）</div>';
+
+  // ── コメント（選択月に投稿された本文）──
+  const cmts = (RV.comments || {})[rvMonth] || [];
+  document.getElementById('rv-cmt-head').textContent =
+    rvMonth ? '（' + rvMonth + ' 投稿分 ' + cmts.length + '件）' : '';
+
+  // ── OTAタブ ──
+  // その月に実際にコメントがあるOTAだけ出す（0件のタブは押しても何も起きない）
+  const cmtOtaCount = {};
+  cmts.forEach(function(c) { cmtOtaCount[c.ota] = (cmtOtaCount[c.ota] || 0) + 1; });
+  const cmtOtas = Object.keys(cmtOtaCount).sort(function(a, b) {
+    return cmtOtaCount[b] - cmtOtaCount[a]; });
+  if (rvCmtOta !== 'all' && cmtOtas.indexOf(rvCmtOta) < 0) rvCmtOta = 'all';
+
+  const cmtTabs = document.getElementById('rv-cmt-tabs');
+  cmtTabs.innerHTML =
+    '<button class="metric-btn' + (rvCmtOta === 'all' ? ' active' : '')
+    + '" data-cmtota="all">全OTA <span style="opacity:.7">' + cmts.length + '</span></button>'
+    + cmtOtas.map(function(o) {
+        return '<button class="metric-btn' + (rvCmtOta === o ? ' active' : '')
+          + '" data-cmtota="' + o + '" style="border-left:3px solid '
+          + (LR_OTA_COLOR[o] || 'var(--bd)') + '">'
+          + (LR_OTA_NAME[o] || o) + ' <span style="opacity:.7">'
+          + cmtOtaCount[o] + '</span></button>'; }).join('');
+  cmtTabs.querySelectorAll('[data-cmtota]').forEach(function(b) {
+    b.onclick = function() {
+      rvCmtOta = this.dataset.cmtota;
+      rvCmtOpen = false;            // OTAを変えたら畳み直す
+      drawReviews();
+    };
+  });
+
+  if (!cmts.length) {
+    document.getElementById('rv-comments').innerHTML =
+      '<div class="empty-msg">この月に投稿されたコメントはありません</div>';
+    return;
+  }
+
+  // ── 絞り込みと件数の打ち切り ──
+  const picked = rvCmtOta === 'all'
+    ? cmts : cmts.filter(function(c) { return c.ota === rvCmtOta; });
+
+  // 既定では **OTAごとに** 先頭 RV_CMT_INIT 件。投稿日の新しい順に並んでいるので
+  // 先頭から取れば最新が残る。全体で切ると1社がタブを埋めてしまう
+  let shown = picked, hidden = 0;
+  if (!rvCmtOpen) {
+    const perOta = {};
+    shown = picked.filter(function(c) {
+      perOta[c.ota] = (perOta[c.ota] || 0) + 1;
+      return perOta[c.ota] <= RV_CMT_INIT;
+    });
+    hidden = picked.length - shown.length;
+  }
+
+  // 区分ごとにまとめる。判定なし（neutral のみ）は末尾に置く
+  const groups = {good:[], bad:[], both:[], none:[]};
+  shown.forEach(function(c) { groups[rvCommentCat(c)].push(c); });
+
+  let out =
+    '<div style="font-size:10px;color:var(--mu);line-height:1.9;margin-bottom:10px">'
+    + '<div>本文は文ごとに判定を付けています。'
+    + '<span class="rv-cat rv-cat--good">＋ Good</span> '
+    + '<span class="rv-cat rv-cat--bad">− Bad</span> '
+    + '<span class="rv-cat rv-cat--none">・ 判定なし</span>'
+    + '　色だけでなく行頭の記号でも区別できます</div>'
+    + '<div>区分はクチコミ単位（含まれる文から決定）。'
+    + '判定なしは Good/Bad に寄せず末尾にまとめています</div>'
+    + '<div>表示中：' + shown.length + '件 / ' + picked.length + '件'
+    + (rvCmtOta === 'all' ? '（全OTA）' : '（' + (LR_OTA_NAME[rvCmtOta] || rvCmtOta) + '）')
+    + (hidden ? '　既定はOTAごとに' + RV_CMT_INIT + '件までです' : '')
+    + '</div>'
+    + '</div>';
+
+  RV_CATS.forEach(function(cat) {
+    const list = groups[cat.key];
+    if (!list.length) return;
+    out += '<div class="rv-cmt-sec">'
+        + '<span class="rv-cat ' + cat.cls + '">' + cat.mark + ' ' + cat.label + '</span>'
+        + ' <span style="font-weight:400;color:var(--mu);font-size:10px">'
+        + list.length + '件 — ' + cat.note + '</span></div>';
+    out += list.map(function(x) {
+      const col = LR_OTA_COLOR[x.ota] || 'var(--mu)';
+      return '<div class="rv-cmt">'
+        + '<div class="rv-cmt-meta">'
+        + '<span class="rv-cat ' + cat.cls + '">' + cat.mark + ' ' + cat.label + '</span>'
+        + '<span style="color:' + col + ';font-weight:600">'
+        + (LR_OTA_NAME[x.ota] || x.ota) + '</span>'
+        + '<span>' + (x.posted_at || '') + '</span>'
+        + '<span>総合 ' + (x.total == null ? '–' : x.total) + '</span>'
+        + (x.title ? '<span style="color:var(--tx)">' + esc(x.title) + '</span>' : '')
+        + '</div>'
+        + '<div class="rv-cmt-body">' + rvBodyHtml(x) + '</div>'
+        + '</div>'; }).join('');
+  });
+  if (hidden) {
+    out += '<div style="text-align:center;margin-top:10px">'
+        + '<button class="metric-btn" id="rv-cmt-more">もっと見る（残り ' + hidden + '件）</button>'
+        + '</div>';
+  } else if (rvCmtOpen && picked.length > RV_CMT_INIT) {
+    out += '<div style="text-align:center;margin-top:10px">'
+        + '<button class="metric-btn" id="rv-cmt-less">折りたたむ</button></div>';
+  }
+  const box = document.getElementById('rv-comments');
+  box.innerHTML = out;
+  const more = document.getElementById('rv-cmt-more');
+  if (more) more.onclick = function() { rvCmtOpen = true; drawReviews(); };
+  const less = document.getElementById('rv-cmt-less');
+  if (less) less.onclick = function() { rvCmtOpen = false; drawReviews(); };
+}
+
+function drawListingRank() {
+  const LR = lrData();
+  const media = lrMedia();
+  const tbl = document.getElementById('t-listing-rank');
+  if (!tbl) return;                       // 掲載順位タブ自体を出していない施設
+
+  // ── 人数の切替 ──
+  // 一覧表・OTA別グラフ・上位10施設のすべてがこの1つを見る。
+  // 選択肢が1つしかない施設（旅館は2名のみ）ではボタンを出さない。
+  // 押しても何も変わらないボタンは、あるだけで迷わせる
+  // 既定は2名。旅館2施設が2名のみで運用してきた実績があり、ホテルでも
+  // 2名は必ず取る。2名が無い施設では、存在する中の最小値に落とす
+  const caps = lrCaps();
+  if (caps.length && caps.indexOf(lrCap) < 0) {
+    lrCap = caps.indexOf(2) >= 0 ? 2 : caps[0];
+  }
+  const capBar = document.getElementById('lr-cap-bar');
+  if (capBar) {
+    capBar.innerHTML = caps.length > 1
+      ? '<div class="chart-box" style="padding:10px 14px;display:flex;align-items:center;gap:10px">'
+        + '<span style="font-size:11px;color:var(--mu);white-space:nowrap">人数</span>'
+        + '<div class="metric-tabs">'
+        + caps.map(function(c) {
+            return '<button class="metric-btn' + (lrCap === c ? ' active' : '')
+              + '" data-lrcap="' + c + '">大人' + c + '名</button>'; }).join('')
+        + '</div>'
+        + '<span style="font-size:10px;color:var(--mu)">一覧表・グラフ・上位10施設のすべてに効きます</span>'
+        + '</div>'
+      : '';
+    capBar.querySelectorAll('[data-lrcap]').forEach(function(b) {
+      b.onclick = function() { lrCap = Number(this.dataset.lrcap); drawListingRank(); };
+    });
+  }
+
+  // 年の既定は「データがある最後の年」
+  const years = lrYears();
+  if (years.length && years.indexOf(lrYear) < 0) lrYear = years[years.length - 1];
+  const yearTabs = document.getElementById('lr-year-tabs');
+  yearTabs.innerHTML = years.map(function(y) {
+    return '<button class="metric-btn' + (lrYear === y ? ' active' : '')
+      + '" data-lryear="' + y + '">' + y + '年</button>'; }).join('');
+  yearTabs.querySelectorAll('[data-lryear]').forEach(function(b) {
+    b.onclick = function() { lrYear = this.dataset.lryear; drawListingRank(); };
+  });
+
+  // 一覧表とOTA別グラフは選んだ年だけ。TOP10表は年をまたいで横に伸ばす
+  const months = lrYearMonths();
+
+  if (!media.length) {
+    tbl.innerHTML = '<tr><td class="empty-msg">掲載順位は未収集です（--facility を指定して生成してください）</td></tr>';
+    document.getElementById('lr-cond').innerHTML = '';
+    document.getElementById('lr-charts').innerHTML = '';
+    document.getElementById('t-listing-top').innerHTML = '';
+    document.getElementById('lr-top-note').innerHTML = '';
+    return;
+  }
+
+  // ── 掲載順位 一覧（最上位） ──
+  // 前月差・前年差の数字は出さない。年切替で並べて目で見比べる方式にする
+  let h = '<tr><th style="text-align:left;white-space:nowrap">月</th>';
+  media.forEach(function(c) {
+    const col = LR_OTA_COLOR[c.ota] || 'var(--mu)';
+    h += '<th style="white-space:nowrap;color:' + col + '">'
+       + (LR_OTA_NAME[c.ota] || c.ota)
+       + '<br><span style="font-size:9px;font-weight:400">' + lrDevLabel(c.device) + '</span></th>';
+  });
+  h += '</tr>';
+  if (!months.length) {
+    h += '<tr><td class="empty-msg" colspan="' + (media.length + 1) + '">'
+       + (lrYear ? lrYear + '年のデータはありません' : 'データなし') + '</td></tr>';
+  }
+  months.slice().reverse().forEach(function(m) {
+    const ref = lrIsRef(m);
+    h += '<tr><td style="white-space:nowrap">' + m
+       + (ref ? '<br><span style="font-size:9px;color:var(--wn)" title="'
+                + String(lrRefNote(m)).replace(/"/g, '') + '">参考値（手作業）</span>' : '')
+       + '</td>';
+    media.forEach(function(c) {
+      const r = lrFind(m, c.ota, c.device, lrCap);
+      if (!r) { h += '<td style="text-align:center;color:var(--mu)">未取得</td>'; return; }
+      h += '<td style="text-align:center;white-space:nowrap;color:'
+         + (r.status === 'ok' ? 'var(--tx)' : 'var(--mu)') + (ref ? ';opacity:.75' : '') + '">'
+         + lrPos(r) + '</td>';
+    });
+    h += '</tr>';
+  });
+  tbl.innerHTML = h;
+
+  // ── 取得条件 ──
+  const latest = months.length ? months[months.length - 1] : null;
+  if (latest) {
+    const doc = lrDoc(latest), cond = doc.conditions || {};
+    const areaLines = Object.keys(cond.search_area_by_ota || {}).map(function(o) {
+      return (LR_OTA_NAME[o] || o) + '=' + cond.search_area_by_ota[o]; }).join(' ／ ');
+    // 宿泊日は「表示中の人数のレコード」から取る。先頭レコード決め打ちだと、
+    // 1名・2名が混在する施設で、選んでいない方の条件を表示してしまう
+    const rec0 = (doc.records || []).find(function(r){ return r.capacity === lrCap; })
+              || (doc.records || [])[0] || {};
+    document.getElementById('lr-cond').innerHTML =
+      '<div><strong style="color:var(--tx)">取得条件</strong>（' + latest + ' 時点・記録された値）</div>'
+      + '<div>エリア: ' + (areaLines || '-') + '</div>'
+      + '<div>粒度: ' + (cond.area_level || '-')
+      + '／並び順: ' + (cond.sort_order || '-')
+      + '／広告枠: ' + (cond.exclude_ads ? '除外' : '含む')
+      + '／宿泊日ルール: ' + (cond.target_date_rule || '-')
+      + '／ブラウザ: ' + (cond.browser_state || '-') + '</div>'
+      + '<div>対象宿泊日: ' + (rec0.target_date || '-')
+      + '／人数: 大人' + (lrCap != null ? lrCap : (rec0.capacity != null ? rec0.capacity : '-')) + '名'
+      + '／取得: ' + (doc.fetched_at || '-') + '</div>'
+      + '<div style="margin-top:4px">※ OTAごとにエリアの広さが違うため、順位を横並びで比較しないこと</div>'
+      + ((lrData().months || []).some(lrIsRef)
+          ? '<div style="color:var(--wn)">※ 参考値の月は取得条件が違います。境目をまたいだ比較はできません</div>'
+            + (function(){
+                const notes = [];
+                (lrData().months || []).forEach(function(m){
+                  const n = lrRefNote(m);
+                  if (n && notes.indexOf(n) < 0) notes.push(n);
+                });
+                return notes.map(function(n){
+                  return '<div style="color:var(--wn)">参考値の条件: ' + n + '</div>'; }).join('');
+              })()
+          : '');
+  }
+
+  drawListingCharts();
+  drawListingTop();
+}
+
+// ── OTAごとの順位推移（1枚につきPC・モバイルの2本だけ） ──
+function drawListingCharts() {
+  const months = lrYearMonths(), media = lrMedia();
+  const otas = [];
+  media.forEach(function(c) { if (otas.indexOf(c.ota) < 0) otas.push(c.ota); });
+
+  const wrap = document.getElementById('lr-charts');
+  wrap.innerHTML = otas.map(function(o) {
+    return '<div class="chart-box">'
+      + '<div class="chart-title" style="color:' + (LR_OTA_COLOR[o] || 'var(--tx)') + '">'
+      + (LR_OTA_NAME[o] || o) + ' の順位推移</div>'
+      + '<div id="lr-box-' + o + '"><canvas id="c-lr-' + o + '" height="110"></canvas></div>'
+      + '</div>';
+  }).join('');
+
+  otas.forEach(function(o) {
+    const devs = media.filter(function(c){ return c.ota === o; });
+    const datasets = devs.map(function(c) {
+      const col = LR_OTA_COLOR[o] || '#9E9E9E';
+      const data = months.map(function(m) {
+        const r = lrFind(m, c.ota, c.device, lrCap);
+        // status が ok 以外は null。0で埋めない・前月値で埋めない
+        return (r && r.status === 'ok' && r.rank != null) ? r.rank : null;
+      });
+      return {
+        label: lrDevLabel(c.device),
+        data: data, borderColor: col, backgroundColor: col,
+        borderDash: c.device === 'mobile' ? [5,3] : [],
+        borderWidth: 2, pointRadius: 3, tension: 0.2, spanGaps: false,
+        pointBackgroundColor: months.map(function(m){ return lrIsRef(m) ? lrTint(col) : col; }),
+        segment: {
+          borderDash: function(ctx) {
+            if (lrIsRef(months[ctx.p0DataIndex]) || lrIsRef(months[ctx.p1DataIndex])) return [2,2];
+            return c.device === 'mobile' ? [5,3] : undefined;
+          },
+          borderColor: function(ctx) {
+            if (lrIsRef(months[ctx.p0DataIndex]) || lrIsRef(months[ctx.p1DataIndex])) return lrTint(col);
+            return col;
+          }
+        }
+      };
+    });
+    const vals = datasets.reduce(function(a,d){ return a.concat(d.data); }, [])
+                         .filter(function(v){ return v != null; });
+    if (!vals.length) {
+      document.getElementById('lr-box-' + o).innerHTML =
+        '<div class="empty-msg" style="padding:14px">'
+        + (months.length ? lrYear + '年は未取得です'
+                         : '未取得（このOTAの掲載順位はまだ収集していません）') + '</div>';
+      return;
+    }
+    mk('c-lr-' + o, {
+      type: 'line',
+      data: { labels: months, datasets: datasets },
+      plugins: [lrBoundaryPlugin(months)],
+      options: Object.assign({}, base, {
+        plugins: {
+          legend: { display:true, labels:{ color:'#7a7f8e', font:{ size:10 }, boxWidth:18 } },
+          tooltip: Object.assign({}, base.plugins.tooltip, {
+            callbacks: { label: function(ctx) {
+              const c = devs[ctx.datasetIndex], m = months[ctx.dataIndex];
+              const r = lrFind(m, c.ota, c.device, lrCap);
+              return lrDevLabel(c.device) + ': ' + (r ? lrPos(r) : '未取得')
+                   + (lrIsRef(m) ? '（参考値）' : '');
+            } }
+          })
+        },
+        scales: {
+          x: base.scales.x,
+          y: { reverse:true, min:1, suggestedMax: Math.max.apply(null, vals) + 1,
+               grid: base.scales.y.grid,
+               ticks: Object.assign({}, base.scales.y.ticks,
+                      { precision:0, callback:function(v){ return v + '位'; } }) }
+        }
+      })
+    });
+  });
+}
+
+// ── 上位10施設の推移（競合名入りの一覧表） ──
+// 行＝1〜10位、列＝月、セル＝その順位にいた施設名。自社のセルだけ色を変える。
+// 順位の入れ替わりを、名前で目で追えるようにするための表。
+function drawListingTop() {
+  // ここだけ年で絞らない。12月→1月のような年をまたぐ入れ替わりを
+  // 連続して追いたいため、全期間を横に並べる
+  const months = lrData().months || [], media = lrMedia();
+  const tbl = document.getElementById('t-listing-top');
+  const note = document.getElementById('lr-top-note');
+
+  // 媒体の選択ボタン
+  if (!lrPickedMedium && media.length) {
+    lrPickedMedium = media[0].ota + '|' + media[0].device;
+  }
+  const tabs = document.getElementById('lr-top-tabs');
+  tabs.innerHTML = media.map(function(c) {
+    const key = c.ota + '|' + c.device;
+    return '<button class="metric-btn' + (lrPickedMedium === key ? ' active' : '')
+      + '" data-lrtop="' + key + '">' + (LR_OTA_NAME[c.ota] || c.ota)
+      + ' ' + lrDevLabel(c.device) + '</button>';
+  }).join('');
+  tabs.querySelectorAll('[data-lrtop]').forEach(function(b) {
+    b.onclick = function() { lrPickedMedium = this.dataset.lrtop; drawListingTop(); };
+  });
+
+  if (!lrPickedMedium) { tbl.innerHTML = ''; note.innerHTML = ''; return; }
+  const ota = lrPickedMedium.split('|')[0], device = lrPickedMedium.split('|')[1];
+
+  // 上位一覧を持つ月だけが列になる（手作業の月には上位一覧が無い）
+  const cols = months.filter(function(m) {
+    const r = lrFind(m, ota, device, lrCap);
+    return r && r.top_listings && r.top_listings.length;
+  });
+  if (!cols.length) {
+    tbl.innerHTML = '<tr><td class="empty-msg">'
+      + (LR_OTA_NAME[ota] || ota) + ' ' + lrDevLabel(device)
+      + ' は上位一覧が未取得です</td></tr>';
+    note.innerHTML = '';
+    return;
+  }
+
+  let h = '<tr><th style="text-align:left;white-space:nowrap">順位</th>';
+  cols.forEach(function(m) {
+    h += '<th style="white-space:nowrap">' + m
+       + (lrIsRef(m) ? '<br><span style="font-size:9px;color:var(--wn)">参考値</span>' : '') + '</th>';
+  });
+  h += '</tr>';
+
+  for (let rank = 1; rank <= 10; rank++) {
+    h += '<tr><td style="white-space:nowrap;color:var(--mu)">' + rank + '位</td>';
+    cols.forEach(function(m) {
+      const r = lrFind(m, ota, device, lrCap);
+      const hit = (r.top_listings || []).find(function(t){ return t.rank === rank; });
+      if (!hit) { h += '<td style="color:var(--mu)">-</td>'; return; }
+      const ownId = lrOwnId(m, ota, device, lrCap);
+      const isOwn = ownId != null && (hit.listing_id || hit.facility) === ownId;
+      h += '<td style="white-space:nowrap;'
+         + (isOwn ? 'background:rgba(139,105,20,0.16);color:var(--ac);font-weight:700' : '')
+         + '">' + String(hit.facility || '').slice(0, 26) + '</td>';
+    });
+    h += '</tr>';
+  }
+  tbl.innerHTML = h;
+
+  note.innerHTML = '<div>行＝順位、列＝月。セルはその月その順位にいた施設です。'
+    + '<span style="background:rgba(139,105,20,0.16);color:var(--ac);font-weight:700;padding:0 4px">色付き</span> が自社です</div>'
+    + (months.length > cols.length
+        ? '<div style="color:var(--wn)">※ 上位一覧が無い月（手作業の記録）は列に出せません</div>'
+        : '');
+}
+
+// ======================= 売上ランキング =======================
+// 順位は「小さいほど良い」指標なので、グラフはY軸を反転して1位を上に置く。
+// 反転しないと「線が下がる＝悪化」に見えてしまい、意味が逆に読まれる。
+//
+
+showTab('listing_rank',document.querySelector('.nav-tab'));
+
+</script>
+</body>
+</html>
