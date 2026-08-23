@@ -21,8 +21,16 @@
 # 公開する意味が無い一方、施設固有の事情やパスがコメントに書かれうる。
 # 個別名ではなくパターンで書く（施設が増えたときに書き足し忘れないように）。
 # 2026-08-16 に kararako/ marunouchi/ の4本を追跡から外した（履歴は残る）
+#
+# 2026-08-23: analyzer 側を系統名べた書き（*/temairazu_analyzer.py）から
+# パターンに変えた。ねっぱん系の neppan_analyzer.py が網から漏れており、
+# ★このままでは追跡対象になっていた★。
+# 上のコメントが「個別名ではなくパターンで書く」と決めているのに、
+# analyzer だけ個別名のままだったのを揃えたもの。
+# */*_analyzer.py は */temairazu_analyzer.py を完全に含むので、
+# 既存2施設の扱いは変わらない
 */generate_*.py
-*/temairazu_analyzer.py
+*/*_analyzer.py
 
 # macOS が勝手に作る。中にフォルダ内のファイル名一覧が入る
 .DS_Store
